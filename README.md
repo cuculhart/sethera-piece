@@ -8,7 +8,7 @@
 
 ![見積書の作成例](docs/screenshot.png)
 
-**Live demo: https://cuculhart.github.io/sethera-piece/**（インストール不要・ブラウザだけで動きます）
+**[Live demo](https://cuculhart.github.io/sethera-piece/)** — インストール不要・ブラウザだけで動きます
 
 ## 特徴
 
