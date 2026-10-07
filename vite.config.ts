@@ -2,5 +2,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  plugins: [react()],
+	// GitHub Pages は /<repo>/ 配下に配置されるため base を合わせる
+	base: '/sethera-piece/',
+	plugins: [react()],
 })
