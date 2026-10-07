@@ -66,7 +66,7 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 					)}
 				</>
 			)}
-			<NodeResizer isVisible={selected} minWidth={90} minHeight={44} />
+			<NodeResizer isVisible={selected} minWidth={64} minHeight={28} />
 			<Handle type="source" id="out" position={Position.Right} />
 		</div>
 	)

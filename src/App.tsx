@@ -41,7 +41,7 @@ import { VObjectNode } from './nodes/vobject-node'
 import { HintContext } from './hint-context'
 import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
 
-const GRID = 24
+const GRID = 12
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 
@@ -123,6 +123,8 @@ function Board() {
 	const [paper, setPaper] = useState<PaperCfg>(doc.paper)
 	const [gridOn, setGridOn] = useState(true)
 	const [snapOn, setSnapOn] = useState(false)
+	const [lineMode, setLineMode] = useState(false)
+	const [tbCollapsed, setTbCollapsed] = useState(false)
 	const [hintedIds, setHintedIds] = useState<ReadonlySet<string>>(new Set())
 	const rf = useReactFlow<BoardNode>()
 	const wrapRef = useRef<HTMLDivElement>(null)
@@ -250,9 +252,9 @@ function Board() {
 		const node: VObjectNodeType = {
 			id: crypto.randomUUID(),
 			type: 'vobject',
-			position: { x: c.x - 110 + offset, y: c.y - 32 + offset },
-			width: 220,
-			height: 64,
+			position: { x: c.x - 100 + offset, y: c.y - 20 + offset },
+			width: 200,
+			height: 40,
 			zIndex: 1,
 			data: {
 				kind,
@@ -519,6 +521,7 @@ function Board() {
 				)}
 			>
 				<ReactFlow
+					className={lineMode ? 'linemode' : undefined}
 					nodes={nodes}
 					edges={edges}
 					nodeTypes={nodeTypes}
@@ -541,27 +544,49 @@ function Board() {
 					{...(savedViewport ? { defaultViewport: savedViewport } : { fitView: true })}
 				>
 					{gridOn && (
-						<Background variant={BackgroundVariant.Dots} gap={GRID} size={1.5} />
+						<Background variant={BackgroundVariant.Dots} gap={GRID} size={1.2} />
 					)}
 					{paper.on && <PaperFrame cfg={paper} onChange={setPaper} />}
 				</ReactFlow>
-				<div className="toolbar">
+				<div className={tbCollapsed ? 'toolbar collapsed' : 'toolbar'}>
+					<button
+						className="tbtoggle"
+						title={tbCollapsed ? 'ツールバーを展開' : 'ツールバーを折りたたむ'}
+						onClick={() => setTbCollapsed((v) => !v)}
+					>
+						{tbCollapsed ? '»' : '«'}
+					</button>
 					<span className="brand">
-						セセラピース <em>Visual Strategy Board</em>
+						Sethera Piece <em>Visual Strategy Board</em>
 					</span>
-					<button onClick={() => addObject('pair')}>付箋＋数値</button>
-					<button onClick={() => addObject('text')}>テキスト</button>
-					<button onClick={() => addObject('number')}>数値</button>
-					<button onClick={addCalc} title="四則演算ピース（ピースの右の●から線を引いて繋ぐ）">
+					<button data-icon="付" title="付箋＋数値ピース" onClick={() => addObject('pair')}>
+						付箋＋数値
+					</button>
+					<button data-icon="文" title="テキストピース" onClick={() => addObject('text')}>
+						テキスト
+					</button>
+					<button data-icon="数" title="数値ピース" onClick={() => addObject('number')}>
+						数値
+					</button>
+					<button data-icon="計" onClick={addCalc} title="四則演算ピース（ピースの右の●から線を引いて繋ぐ）">
 						計算
 					</button>
-					<button onClick={addLine} title="罫線（横長=水平線/縦長=垂直線。線は枠の上辺・左辺に引かれる。選択中に線種変更）">
+					<button data-icon="─" onClick={addLine} title="罫線（横長=水平線/縦長=垂直線。線は枠の上辺・左辺に引かれる。選択中に線種変更）">
 						罫線
 					</button>
-					<button onClick={createZone}>
+					<button
+						data-icon="✎"
+						className={lineMode ? 'active' : ''}
+						onClick={() => setLineMode((v) => !v)}
+						title="線編集モード: ONの間は罫線だけを最前面で操作可能（他のピースはクリック不可・半透明）"
+					>
+						線編集
+					</button>
+					<button data-icon="Σ" title="選択中のピースを囲む集計ゾーン" onClick={createZone}>
 						Σ 集計ゾーン{selectedCount > 0 ? ` (${selectedCount})` : ''}
 					</button>
 					<button
+						data-icon="#"
 						className={gridOn ? 'active' : ''}
 						title="グリッド表示"
 						onClick={() => setGridOn(!gridOn)}
@@ -569,6 +594,7 @@ function Board() {
 						グリッド
 					</button>
 					<button
+						data-icon="吸"
 						className={snapOn ? 'active' : ''}
 						title="グリッドへの吸着"
 						onClick={() => setSnapOn(!snapOn)}
@@ -576,19 +602,20 @@ function Board() {
 						吸着
 					</button>
 					<button
+						data-icon="紙"
 						className={paper.on ? 'active' : ''}
 						title="用紙枠の表示（A4/B5/A3・縦横切替）"
 						onClick={togglePaper}
 					>
 						用紙
 					</button>
-					<button onClick={doPrint} title="用紙枠（または全体）の範囲を印刷">
+					<button data-icon="印" onClick={doPrint} title="用紙枠（または全体）の範囲を印刷">
 						印刷
 					</button>
-					<button onClick={exportDoc} title="JSONファイルに保存">
+					<button data-icon="保" onClick={exportDoc} title="JSONファイルに保存">
 						保存
 					</button>
-					<button onClick={() => fileRef.current?.click()} title="JSONファイルを開く">
+					<button data-icon="開" onClick={() => fileRef.current?.click()} title="JSONファイルを開く">
 						開く
 					</button>
 					<input

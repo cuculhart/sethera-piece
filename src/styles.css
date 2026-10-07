@@ -19,18 +19,21 @@ body,
 	inset: 0;
 }
 
-/* ---- toolbar overlay ---- */
+/* ---- toolbar: 左側の縦レール（折りたたみ可） ---- */
 
 .toolbar {
 	position: absolute;
 	top: 12px;
-	left: 50%;
-	transform: translateX(-50%);
+	left: 12px;
 	z-index: 300;
 	display: flex;
-	gap: 8px;
-	align-items: center;
-	padding: 6px 10px;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 6px;
+	width: 148px;
+	max-height: calc(100% - 24px);
+	overflow-y: auto;
+	padding: 8px;
 	background: rgba(255, 255, 255, 0.92);
 	border: 1px solid #d0d0d0;
 	border-radius: 10px;
@@ -39,15 +42,16 @@ body,
 
 .toolbar .brand {
 	font-weight: 700;
-	margin-right: 8px;
+	font-size: 13px;
+	padding: 2px 4px;
 }
 
 .toolbar .brand em {
+	display: block;
 	font-style: normal;
 	font-weight: 400;
 	font-size: 0.8em;
 	color: #666;
-	margin-left: 4px;
 }
 
 .toolbar button {
@@ -57,6 +61,39 @@ body,
 	background: #fff;
 	cursor: pointer;
 	font-size: 13px;
+	text-align: left;
+}
+
+.toolbar button::before {
+	content: attr(data-icon);
+	font-size: 0;
+}
+
+/* 折りたたみ時: アイコンのみの細レール */
+.toolbar.collapsed {
+	width: 40px;
+	align-items: center;
+	padding: 6px 4px;
+}
+
+.toolbar.collapsed .brand {
+	display: none;
+}
+
+.toolbar.collapsed button {
+	width: 30px;
+	padding: 6px 0;
+	font-size: 0;
+	text-align: center;
+}
+
+.toolbar.collapsed button::before {
+	font-size: 15px;
+}
+
+.toolbar.collapsed button.tbtoggle::before {
+	content: '»';
+	font-size: 14px;
 }
 
 .toolbar button:hover {
@@ -85,7 +122,7 @@ body,
 	border: 1px solid rgba(0, 0, 0, 0.12);
 	border-radius: 6px;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-	padding: 6px;
+	padding: 3px 8px;
 	box-sizing: border-box;
 	overflow: hidden;
 }
@@ -119,10 +156,11 @@ body,
 	outline-offset: 3px;
 }
 
-/* 枠なし（プレーンテキスト） */
+/* 枠なし（プレーンテキスト）: 編集時は薄い点線ガイドを出す（印刷には写らない） */
 .vobject.plain {
 	box-shadow: none;
 	padding: 2px;
+	outline: 1px dashed rgba(0, 0, 0, 0.18);
 }
 
 .vobject-label {
@@ -494,6 +532,7 @@ textarea.vobject-label-input {
 	background: transparent;
 	border-color: transparent;
 	box-shadow: none;
+	outline: 1px dashed rgba(0, 0, 0, 0.18);
 }
 
 .calcnode.align-l .calc-result {
@@ -765,6 +804,11 @@ textarea.vobject-label-input {
 	display: none !important;
 }
 
+.capturing .vobject.plain,
+.capturing .calcnode.plain {
+	outline: none;
+}
+
 /* ---- 印刷 ---- */
 
 .print-stage {
@@ -795,4 +839,14 @@ textarea.vobject-label-input {
 		width: 100%;
 		height: auto;
 	}
+}
+
+/* ---- 線編集モード: 罫線だけを操作可能にする ---- */
+.react-flow.linemode .react-flow__node:not(.react-flow__node-line) {
+	pointer-events: none;
+	opacity: 0.5;
+}
+
+.react-flow.linemode .react-flow__node-line {
+	z-index: 30 !important;
 }

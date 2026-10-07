@@ -1,7 +1,7 @@
 import { NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react'
 import type { LineNodeType, LineWeight } from './types'
 
-const GRID = 24
+const GRID = 12
 const STROKES: Record<LineWeight, { width: number; dash?: string }> = {
 	thin: { width: 1.5 },
 	bold: { width: 3 },

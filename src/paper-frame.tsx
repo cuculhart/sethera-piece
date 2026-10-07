@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { ViewportPortal, useReactFlow } from '@xyflow/react'
 
 const MM = 96 / 25.4
-const GRID = 24
+const GRID = 12
 
 export type PaperSize = 'A4' | 'B5' | 'A3'
 
