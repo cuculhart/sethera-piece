@@ -8,6 +8,8 @@
 
 ![見積書の作成例](docs/screenshot.png)
 
+**Live demo: https://cuculhart.github.io/sethera-piece/**（インストール不要・ブラウザだけで動きます）
+
 ## 特徴
 
 - **ピース** — テキスト / 数値 / 付箋＋数値。複数行入力、揃え・色・サイズ（S/M/L/LL）・太字・枠なし表示
@@ -24,7 +26,7 @@
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5173/sethera-piece/
 npm run build    # 本番ビルド → dist/
 npm run typecheck
 ```
