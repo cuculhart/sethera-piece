@@ -96,8 +96,13 @@ body,
 	font-size: 14px;
 }
 
-.toolbar button:hover {
+.toolbar button:hover:not(:disabled) {
 	background: #f0f0f0;
+}
+
+.toolbar button:disabled {
+	opacity: 0.4;
+	cursor: default;
 }
 
 .toolbar button.active {
@@ -804,9 +809,28 @@ textarea.vobject-label-input {
 	display: none !important;
 }
 
+/* ノード内の操作要素はレイアウトを保ったまま不可視化（display:noneだと位置がずれる） */
+.capturing .calc-mini-btn,
+.capturing .aggzone-grip,
+.capturing .aggzone-fn,
+.capturing .aggzone-pos,
+.capturing .aggzone-plain,
+.capturing .aggzone-src,
+.capturing .aggzone-count {
+	visibility: hidden !important;
+}
+
 .capturing .vobject.plain,
 .capturing .calcnode.plain {
 	outline: none;
+}
+
+/* 式表示中のselectはテキストのように見せる */
+.capturing select {
+	appearance: none;
+	border: none;
+	background: transparent;
+	padding: 0;
 }
 
 /* ---- 印刷 ---- */
@@ -820,9 +844,25 @@ textarea.vobject-label-input {
 	overflow: hidden;
 }
 
+.print-note {
+	display: none;
+}
+
 @media print {
-	.react-flow,
-	.toolbar {
+	.toolbar,
+	.react-flow {
+		display: none !important;
+	}
+
+	/* 画像なしのブラウザ印刷は非対応: 案内メッセージのみ出力 */
+	.print-note {
+		display: block;
+		padding: 40px;
+		font-size: 16px;
+		color: #333;
+	}
+
+	.hasimg .print-note {
 		display: none !important;
 	}
 
@@ -849,4 +889,101 @@ textarea.vobject-label-input {
 
 .react-flow.linemode .react-flow__node-line {
 	z-index: 30 !important;
+}
+
+/* ---- モーダル ---- */
+
+.modal-back {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.35);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 500;
+}
+
+.modal {
+	background: #fff;
+	border-radius: 10px;
+	padding: 20px 24px;
+	width: 340px;
+	max-width: calc(100vw - 48px);
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.modal h2 {
+	margin: 0 0 6px;
+	font-size: 18px;
+}
+
+.modal-sub {
+	color: #666;
+	font-size: 12px;
+	margin: 0 0 10px;
+}
+
+.modal p {
+	font-size: 13px;
+	line-height: 1.6;
+	margin: 8px 0;
+}
+
+.modal-meta {
+	font-size: 12px;
+	margin: 12px 0;
+	border-top: 1px solid #eee;
+	padding-top: 10px;
+}
+
+.modal-meta div {
+	display: flex;
+	gap: 8px;
+	padding: 2px 0;
+}
+
+.modal-meta dt {
+	width: 76px;
+	color: #666;
+	flex-shrink: 0;
+}
+
+.modal-meta dd {
+	margin: 0;
+}
+
+.modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 14px;
+}
+
+.modal-actions button {
+	padding: 5px 14px;
+	border: 1px solid #c8c8c8;
+	border-radius: 6px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.modal-actions button:hover {
+	background: #f0f0f0;
+}
+
+.modal-actions button.danger {
+	background: #d33;
+	border-color: #b22;
+	color: #fff;
+}
+
+.modal-actions button.danger:hover {
+	background: #b22;
+}
+
+@media print {
+	.modal-back {
+		display: none !important;
+	}
 }

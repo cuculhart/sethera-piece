@@ -41,7 +41,11 @@ import { VObjectNode } from './nodes/vobject-node'
 import { HintContext } from './hint-context'
 import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
 
+type Snapshot = { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg }
+
 const GRID = 12
+const HIST_MAX = 100
+const APP_VERSION = '0.1.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 
@@ -125,6 +129,7 @@ function Board() {
 	const [snapOn, setSnapOn] = useState(false)
 	const [lineMode, setLineMode] = useState(false)
 	const [tbCollapsed, setTbCollapsed] = useState(false)
+	const [modal, setModal] = useState<'about' | 'reset' | null>(null)
 	const [hintedIds, setHintedIds] = useState<ReadonlySet<string>>(new Set())
 	const rf = useReactFlow<BoardNode>()
 	const wrapRef = useRef<HTMLDivElement>(null)
@@ -135,19 +140,115 @@ function Board() {
 	})
 	const savedViewport = useMemo(loadViewport, [])
 
+	// ---- undo/redo 履歴（変更前スナップショット、最大 HIST_MAX 件） ----
+	const histPast = useRef<Snapshot[]>([])
+	const histFuture = useRef<Snapshot[]>([])
+	const [histLen, setHistLen] = useState({ past: 0, future: 0 })
+	const snapRef = useRef<Snapshot | null>(null)
+	snapRef.current = { nodes, edges, paper }
+	const lastRec = useRef({ t: 0, key: '' })
+	const dragRec = useRef(false)
+	const resizeRec = useRef(false)
+
+	// 変更適用前に現状態を積む。150ms以内の連続記録は同一ジェスチャとして統合、
+	// key+win指定で連続操作（自由ドラッグ等）をさらに長い窓で統合
+	const record = useCallback((key = '', win = 0) => {
+		const now = Date.now()
+		const l = lastRec.current
+		if (now - l.t < 150 || (key !== '' && key === l.key && now - l.t < win))
+			return
+		lastRec.current = { t: now, key }
+		histPast.current.push(structuredClone(snapRef.current!))
+		if (histPast.current.length > HIST_MAX) histPast.current.shift()
+		histFuture.current = []
+		setHistLen({ past: histPast.current.length, future: 0 })
+	}, [])
+
+	const undo = useCallback(() => {
+		const prev = histPast.current.pop()
+		if (!prev || !snapRef.current) return
+		histFuture.current.push(structuredClone(snapRef.current))
+		const s = structuredClone(prev)
+		setNodes(s.nodes)
+		setEdges(s.edges)
+		setPaper(s.paper)
+		setHistLen({
+			past: histPast.current.length,
+			future: histFuture.current.length,
+		})
+	}, [])
+
+	const redo = useCallback(() => {
+		const next = histFuture.current.pop()
+		if (!next || !snapRef.current) return
+		histPast.current.push(structuredClone(snapRef.current))
+		const s = structuredClone(next)
+		setNodes(s.nodes)
+		setEdges(s.edges)
+		setPaper(s.paper)
+		setHistLen({
+			past: histPast.current.length,
+			future: histFuture.current.length,
+		})
+	}, [])
+
 	const onNodesChange = useCallback(
-		(changes: NodeChange<BoardNode>[]) =>
-			setNodes((nds) => applyNodeChanges(changes, nds)),
-		[]
+		(changes: NodeChange<BoardNode>[]) => {
+			let recKey = ''
+			for (const c of changes) {
+				if (c.type === 'select') continue
+				if (c.type === 'position' && c.dragging) {
+					if (!dragRec.current) {
+						record('drag')
+						dragRec.current = true
+					}
+					continue
+				}
+				if (c.type === 'position' && c.dragging === false) {
+					dragRec.current = false
+					continue
+				}
+				if (c.type === 'dimensions' && c.resizing === true) {
+					if (!resizeRec.current) {
+						record('resize')
+						resizeRec.current = true
+					}
+					continue
+				}
+				if (c.type === 'dimensions') {
+					// リサイズ終了時 or マウント時の寸法通知は記録しない
+					resizeRec.current = false
+					continue
+				}
+				recKey =
+					c.type === 'remove'
+						? 'rm'
+						: c.type === 'add'
+							? 'add'
+							: c.type === 'replace'
+								? `r:${c.id}`
+								: 'misc'
+			}
+			if (recKey) record(recKey, recKey.startsWith('r:') ? 600 : 0)
+			setNodes((nds) => applyNodeChanges(changes, nds))
+		},
+		[record]
 	)
 	const onEdgesChange = useCallback(
-		(changes: EdgeChange<Edge>[]) =>
-			setEdges((es) => applyEdgeChanges(changes, es)),
-		[]
+		(changes: EdgeChange<Edge>[]) => {
+			for (const c of changes) {
+				if (c.type === 'select') continue
+				record(c.type === 'remove' ? 'rm' : 'add')
+				break
+			}
+			setEdges((es) => applyEdgeChanges(changes, es))
+		},
+		[record]
 	)
 	const onConnect = useCallback((conn: Connection) => {
 		if (!conn.source || !conn.target || conn.source === conn.target) return
 		if (conn.targetHandle !== 'a' && conn.targetHandle !== 'b') return
+		record('add')
 		setEdges((es) =>
 			addEdge(
 				{ ...conn, markerEnd: { type: MarkerType.ArrowClosed } },
@@ -157,7 +258,7 @@ function Board() {
 				)
 			)
 		)
-	}, [])
+	}, [record])
 
 	// localStorage への自動保存（debounce）
 	useEffect(() => {
@@ -174,6 +275,89 @@ function Board() {
 		return () => clearTimeout(t)
 	}, [nodes, edges, paper])
 
+	// 印刷: 用紙（または全オブジェクト外接矩形）を高解像度キャプチャして印刷
+	const [printImg, setPrintImg] = useState<{ src: string; page: string } | null>(
+		null
+	)
+	useEffect(() => {
+		const clear = () => setPrintImg(null)
+		window.addEventListener('afterprint', clear)
+		return () => window.removeEventListener('afterprint', clear)
+	}, [])
+
+	const doPrint = async () => {
+		const root = wrapRef.current
+		const vpEl = root?.querySelector<HTMLElement>('.react-flow__viewport')
+		if (!root || !vpEl) return
+		let bounds: { x: number; y: number; width: number; height: number }
+		let page = 'auto'
+		if (paper.on) {
+			const { w, h } = paperDims(paper)
+			bounds = { x: paper.x, y: paper.y, width: w, height: h }
+			page = `${paper.size}${paper.landscape ? ' landscape' : ''}`
+		} else {
+			const b = getNodesBounds(rf.getNodes())
+			if (!isFinite(b.width) || b.width === 0) {
+				alert('印刷対象がありません')
+				return
+			}
+			bounds = {
+				x: b.x - 24,
+				y: b.y - 24,
+				width: b.width + 48,
+				height: b.height + 48,
+			}
+		}
+		// 選択枠・ハンドル等の装飾を写り込ませない
+		const prevSelected = rf
+			.getNodes()
+			.filter((n) => n.selected)
+			.map((n) => n.id)
+		flushSync(() =>
+			setNodes((nds) =>
+				nds.map((n) => (n.selected ? { ...n, selected: false } : n))
+			)
+		)
+		root.classList.add('capturing')
+		try {
+			const SCALE = 2
+			const vp = getViewportForBounds(
+				bounds,
+				bounds.width * SCALE,
+				bounds.height * SCALE,
+				0.1,
+				3,
+				0
+			)
+			const dataUrl = await toPng(vpEl, {
+				backgroundColor: '#ffffff',
+				// バンドルWebフォント（Noto Sans JPのunicode-range分割）の
+				// 埋め込みは空画像の原因になるためスキップ。PDF側はOSフォントで描画
+				skipFonts: true,
+				width: bounds.width * SCALE,
+				height: bounds.height * SCALE,
+				style: {
+					width: `${bounds.width * SCALE}px`,
+					height: `${bounds.height * SCALE}px`,
+					transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
+				},
+			})
+			if (dataUrl.length < 5000) throw new Error('empty capture')
+			setPrintImg({ src: dataUrl, page })
+		} catch {
+			alert('印刷イメージの生成に失敗しました')
+		} finally {
+			root.classList.remove('capturing')
+			if (prevSelected.length > 0) {
+				setNodes((nds) =>
+					nds.map((n) =>
+						prevSelected.includes(n.id) ? { ...n, selected: true } : n
+					)
+				)
+			}
+		}
+	}
+
 	// Ctrl+C / Ctrl+V / Ctrl+D（選択ノード間のエッジも一緒に複製）
 	useEffect(() => {
 		const innerEdges = (sel: BoardNode[]) => {
@@ -188,6 +372,7 @@ function Board() {
 			select: boolean
 		) => {
 			if (srcNodes.length === 0) return
+			record('app')
 			const idMap = new Map(srcNodes.map((n) => [n.id, crypto.randomUUID()]))
 			setNodes((nds) => [
 				...(select ? nds.map((n) => ({ ...n, selected: false })) : nds),
@@ -210,6 +395,12 @@ function Board() {
 			])
 		}
 		const onKey = (e: KeyboardEvent) => {
+			// Ctrl+P はツールのキャプチャ印刷へ
+			if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+				e.preventDefault()
+				void doPrint()
+				return
+			}
 			const el = document.activeElement as HTMLElement | null
 			if (
 				el &&
@@ -222,7 +413,14 @@ function Board() {
 			}
 			if (!(e.ctrlKey || e.metaKey)) return
 			const key = e.key.toLowerCase()
-			if (key === 'c') {
+			if (key === 'z') {
+				e.preventDefault()
+				if (e.shiftKey) redo()
+				else undo()
+			} else if (key === 'y') {
+				e.preventDefault()
+				redo()
+			} else if (key === 'c') {
 				const sel = rf.getNodes().filter((n) => n.selected)
 				clipboard.current = { nodes: sel, edges: innerEdges(sel) }
 			} else if (key === 'd') {
@@ -235,7 +433,7 @@ function Board() {
 		}
 		window.addEventListener('keydown', onKey)
 		return () => window.removeEventListener('keydown', onKey)
-	}, [rf])
+	}, [rf, record, undo, redo, doPrint])
 
 	const viewportCenter = () => {
 		const rect = wrapRef.current?.getBoundingClientRect()
@@ -246,6 +444,7 @@ function Board() {
 	}
 
 	const addObject = (kind: VObjectKind) => {
+		record('app')
 		const c = viewportCenter()
 		const n = nodes.filter((s) => s.type === 'vobject').length
 		const offset = (n % 8) * 28
@@ -267,6 +466,7 @@ function Board() {
 	}
 
 	const addCalc = () => {
+		record('app')
 		const c = viewportCenter()
 		const n = nodes.filter((s) => s.type === 'calc').length
 		const offset = (n % 8) * 28
@@ -283,6 +483,7 @@ function Board() {
 	}
 
 	const addLine = () => {
+		record('app')
 		const c = viewportCenter()
 		setNodes((nds) => [
 			...nds,
@@ -299,6 +500,7 @@ function Board() {
 	}
 
 	const createZone = () => {
+		record('app')
 		const selected = nodes.filter(
 			(n): n is VObjectNodeType => n.selected === true && n.type === 'vobject'
 		)
@@ -372,6 +574,7 @@ function Board() {
 			.then((t) => {
 				const parsed = JSON.parse(t)
 				if (!Array.isArray(parsed?.nodes)) throw new Error('bad doc')
+				record('app')
 				setNodes(parsed.nodes)
 				setEdges(Array.isArray(parsed.edges) ? parsed.edges : [])
 				if (parsed.paper && typeof parsed.paper === 'object') {
@@ -386,6 +589,7 @@ function Board() {
 
 	// 用紙トグル（初回ON時にビューポート中央へ配置）
 	const togglePaper = () => {
+		record('app')
 		if (!paper.on && !paper.placed) {
 			const { w, h } = paperDims(paper)
 			const c = viewportCenter()
@@ -401,84 +605,23 @@ function Board() {
 		}
 	}
 
-	// 印刷: 用紙（または全オブジェクト外接矩形）を高解像度キャプチャして印刷
-	const [printImg, setPrintImg] = useState<{ src: string; page: string } | null>(
-		null
-	)
-	useEffect(() => {
-		const clear = () => setPrintImg(null)
-		window.addEventListener('afterprint', clear)
-		return () => window.removeEventListener('afterprint', clear)
-	}, [])
-
-	const doPrint = async () => {
-		const root = wrapRef.current
-		const vpEl = root?.querySelector<HTMLElement>('.react-flow__viewport')
-		if (!root || !vpEl) return
-		let bounds: { x: number; y: number; width: number; height: number }
-		let page = 'auto'
-		if (paper.on) {
-			const { w, h } = paperDims(paper)
-			bounds = { x: paper.x, y: paper.y, width: w, height: h }
-			page = `${paper.size}${paper.landscape ? ' landscape' : ''}`
-		} else {
-			const b = getNodesBounds(rf.getNodes())
-			if (!isFinite(b.width) || b.width === 0) {
-				alert('印刷対象がありません')
-				return
-			}
-			bounds = {
-				x: b.x - 24,
-				y: b.y - 24,
-				width: b.width + 48,
-				height: b.height + 48,
-			}
-		}
-		// 選択枠・ハンドル等の装飾を写り込ませない
-		const prevSelected = rf
-			.getNodes()
-			.filter((n) => n.selected)
-			.map((n) => n.id)
-		flushSync(() =>
-			setNodes((nds) =>
-				nds.map((n) => (n.selected ? { ...n, selected: false } : n))
-			)
-		)
-		root.classList.add('capturing')
-		try {
-			const SCALE = 2
-			const vp = getViewportForBounds(
-				bounds,
-				bounds.width * SCALE,
-				bounds.height * SCALE,
-				0.1,
-				3,
-				0
-			)
-			const dataUrl = await toPng(vpEl, {
-				backgroundColor: '#ffffff',
-				width: bounds.width * SCALE,
-				height: bounds.height * SCALE,
-				style: {
-					width: `${bounds.width * SCALE}px`,
-					height: `${bounds.height * SCALE}px`,
-					transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
-				},
-			})
-			setPrintImg({ src: dataUrl, page })
-		} catch {
-			alert('印刷イメージの生成に失敗しました')
-		} finally {
-			root.classList.remove('capturing')
-			if (prevSelected.length > 0) {
-				setNodes((nds) =>
-					nds.map((n) =>
-						prevSelected.includes(n.id) ? { ...n, selected: true } : n
-					)
-				)
-			}
-		}
+	// 全クリア＆リセット（確認モーダル経由。record済みなのでCtrl+Zで復元可）
+	const clearAll = () => {
+		record('app')
+		setNodes([])
+		setEdges([])
+		setModal(null)
 	}
+
+	// モーダルをEscで閉じる
+	useEffect(() => {
+		if (!modal) return
+		const onEsc = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') setModal(null)
+		}
+		window.addEventListener('keydown', onEsc)
+		return () => window.removeEventListener('keydown', onEsc)
+	}, [modal])
 
 	// 罫線はドロップ時に常にグリッドへ吸着
 	const onNodeDragStop = useCallback(
@@ -509,7 +652,7 @@ function Board() {
 	).length
 
 	return (
-		<div className="board" ref={wrapRef}>
+		<div className={printImg ? 'board hasimg' : 'board'} ref={wrapRef}>
 			<HintContext.Provider
 				value={useMemo(
 					() => ({
@@ -546,7 +689,15 @@ function Board() {
 					{gridOn && (
 						<Background variant={BackgroundVariant.Dots} gap={GRID} size={1.2} />
 					)}
-					{paper.on && <PaperFrame cfg={paper} onChange={setPaper} />}
+					{paper.on && (
+						<PaperFrame
+							cfg={paper}
+							onChange={(cfg) => {
+								record('paper', 600)
+								setPaper(cfg)
+							}}
+						/>
+					)}
 				</ReactFlow>
 				<div className={tbCollapsed ? 'toolbar collapsed' : 'toolbar'}>
 					<button
@@ -618,6 +769,36 @@ function Board() {
 					<button data-icon="開" onClick={() => fileRef.current?.click()} title="JSONファイルを開く">
 						開く
 					</button>
+					<button
+						data-icon="↩"
+						disabled={histLen.past === 0}
+						title="元に戻す (Ctrl+Z)"
+						onClick={undo}
+					>
+						↩ 戻す
+					</button>
+					<button
+						data-icon="↪"
+						disabled={histLen.future === 0}
+						title="やり直し (Ctrl+Shift+Z / Ctrl+Y)"
+						onClick={redo}
+					>
+						↪ やり直し
+					</button>
+					<button
+						data-icon="i"
+						title="このアプリについて"
+						onClick={() => setModal('about')}
+					>
+						About
+					</button>
+					<button
+						data-icon="×"
+						title="すべてのピース・罫線・接続を削除"
+						onClick={() => setModal('reset')}
+					>
+						全消去
+					</button>
 					<input
 						ref={fileRef}
 						type="file"
@@ -625,6 +806,10 @@ function Board() {
 						style={{ display: 'none' }}
 						onChange={importDoc}
 					/>
+				</div>
+				<div className="print-note">
+					印刷にはツールバーの「印刷」ボタン、または Ctrl+P
+					をご利用ください（ブラウザの印刷メニューからの直接印刷には対応していません）
 				</div>
 				{printImg && (
 					<div className="print-stage">
@@ -634,6 +819,74 @@ function Board() {
 							alt=""
 							onLoad={() => setTimeout(() => window.print(), 50)}
 						/>
+					</div>
+				)}
+				{modal && (
+					<div
+						className="modal-back"
+						onPointerDown={() => setModal(null)}
+					>
+						<div
+							className="modal"
+							onPointerDown={(e) => e.stopPropagation()}
+						>
+							{modal === 'about' ? (
+								<>
+									<h2>Sethera Piece</h2>
+									<p className="modal-sub">
+										セセラピース — Visual Strategy Board
+									</p>
+									<p>
+										セルではなくピースを自由に置いて計算する、
+										ビジュアルボード。見積書や集計表を、
+										空間にそのまま組み立てられます。
+									</p>
+									<dl className="modal-meta">
+										<div>
+											<dt>Version</dt>
+											<dd>{APP_VERSION}</dd>
+										</div>
+										<div>
+											<dt>License</dt>
+											<dd>MIT</dd>
+										</div>
+										<div>
+											<dt>Copyright</dt>
+											<dd>© 2026 cuculhart</dd>
+										</div>
+										<div>
+											<dt>Built with</dt>
+											<dd>React Flow / Vite</dd>
+										</div>
+									</dl>
+									<div className="modal-actions">
+										<button onClick={() => setModal(null)}>
+											閉じる
+										</button>
+									</div>
+								</>
+							) : (
+								<>
+									<h2>すべて消去しますか？</h2>
+									<p>
+										すべてのピース・罫線・計算・接続を削除します。
+										<br />
+										この操作は Ctrl+Z で元に戻せます。
+									</p>
+									<div className="modal-actions">
+										<button onClick={() => setModal(null)}>
+											キャンセル
+										</button>
+										<button
+											className="danger"
+											onClick={clearAll}
+										>
+											全消去
+										</button>
+									</div>
+								</>
+							)}
+						</div>
 					</div>
 				)}
 			</HintContext.Provider>
