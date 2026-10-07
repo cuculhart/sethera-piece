@@ -1,0 +1,798 @@
+html,
+body,
+#root {
+	margin: 0;
+	height: 100%;
+	overflow: hidden;
+	font-family:
+		'Noto Sans JP', 'Segoe UI', 'Hiragino Kaku Gothic ProN',
+		'Yu Gothic UI', sans-serif;
+}
+
+.app {
+	position: fixed;
+	inset: 0;
+}
+
+.board {
+	position: absolute;
+	inset: 0;
+}
+
+/* ---- toolbar overlay ---- */
+
+.toolbar {
+	position: absolute;
+	top: 12px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 300;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	padding: 6px 10px;
+	background: rgba(255, 255, 255, 0.92);
+	border: 1px solid #d0d0d0;
+	border-radius: 10px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.toolbar .brand {
+	font-weight: 700;
+	margin-right: 8px;
+}
+
+.toolbar .brand em {
+	font-style: normal;
+	font-weight: 400;
+	font-size: 0.8em;
+	color: #666;
+	margin-left: 4px;
+}
+
+.toolbar button {
+	padding: 4px 10px;
+	border: 1px solid #c8c8c8;
+	border-radius: 6px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.toolbar button:hover {
+	background: #f0f0f0;
+}
+
+.toolbar button.active {
+	background: #e3ecff;
+	border-color: #4466cc;
+	color: #2244aa;
+	font-weight: 600;
+}
+
+/* ---- value object (piece card) ---- */
+
+.vobject {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	gap: 2px;
+	width: 100%;
+	height: 100%;
+	background: #fff9b0;
+	border: 1px solid rgba(0, 0, 0, 0.12);
+	border-radius: 6px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+	padding: 6px;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.vobject.editing {
+	overflow: visible;
+	z-index: 5;
+}
+
+/* 編集ツール（揃え・色）はカードの下に浮かせる */
+.vobject-edtools {
+	position: absolute;
+	top: calc(100% + 6px);
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	align-items: center;
+	background: #fff;
+	border: 1px solid #ccc;
+	border-radius: 8px;
+	padding: 6px 8px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	white-space: nowrap;
+	z-index: 10;
+}
+
+.vobject.hinted {
+	outline: 2px dashed #4466cc;
+	outline-offset: 3px;
+}
+
+/* 枠なし（プレーンテキスト） */
+.vobject.plain {
+	box-shadow: none;
+	padding: 2px;
+}
+
+.vobject-label {
+	font-size: 15px;
+	line-height: 1.3;
+	text-align: center;
+	word-break: break-word;
+	white-space: pre-wrap;
+	align-self: stretch;
+}
+
+.vobject-value {
+	font-size: 20px;
+	font-weight: 700;
+	line-height: 1.1;
+	align-self: stretch;
+	text-align: center;
+}
+
+.vobject.align-l .vobject-label,
+.vobject.align-l .vobject-value {
+	text-align: left;
+}
+
+.vobject.align-r .vobject-label,
+.vobject.align-r .vobject-value {
+	text-align: right;
+}
+
+.vobject.size-s .vobject-label {
+	font-size: 12px;
+}
+.vobject.size-m .vobject-label {
+	font-size: 15px;
+}
+.vobject.size-l .vobject-label {
+	font-size: 20px;
+}
+.vobject.size-xl .vobject-label {
+	font-size: 28px;
+}
+.vobject.size-s .vobject-value {
+	font-size: 16px;
+}
+.vobject.size-m .vobject-value {
+	font-size: 20px;
+}
+.vobject.size-l .vobject-value {
+	font-size: 28px;
+}
+.vobject.size-xl .vobject-value {
+	font-size: 38px;
+}
+
+.vobject.bold .vobject-label {
+	font-weight: 700;
+}
+
+.vobject-align-btn.bold-btn {
+	font-weight: 700;
+}
+
+.vobject-label-input,
+.vobject-value-input {
+	width: 100%;
+	box-sizing: border-box;
+	border: 1px solid #bbb;
+	border-radius: 4px;
+	text-align: center;
+	font-size: 14px;
+}
+
+textarea.vobject-label-input {
+	resize: none;
+	font-family: inherit;
+	line-height: 1.4;
+	min-width: 160px;
+	flex: 1;
+}
+
+.vobject-align {
+	display: flex;
+	gap: 4px;
+}
+
+.vobject-align-btn {
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	background: #fff;
+	font-size: 10px;
+	padding: 1px 6px;
+	cursor: pointer;
+	color: #555;
+	line-height: 1.4;
+}
+
+.vobject-align-btn.active {
+	background: #e3ecff;
+	border-color: #4466cc;
+	color: #2244aa;
+}
+
+.vobject-value-input {
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.vobject-colors {
+	display: flex;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.vobject-swatch {
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	border: 1px solid;
+	cursor: pointer;
+	padding: 0;
+}
+
+.vobject-swatch.active {
+	outline: 2px solid #4466cc;
+	outline-offset: 1px;
+}
+
+/* ---- aggregation zone ---- */
+
+/* ゾーン内側はクリックスルー（そのまま矩形選択できる）。ヘッダーとリサイズのみ操作可 */
+.react-flow__node-zone {
+	pointer-events: none;
+}
+
+.react-flow__node-zone .aggzone-header,
+.react-flow__node-zone .react-flow__resize-control {
+	pointer-events: all;
+}
+
+.aggzone {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	background: rgba(160, 160, 160, 0.15);
+	border: 1.5px dashed #888;
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+/* 枠なしゾーン：範囲は不可視（選択時のみ点線表示） */
+.aggzone.plain {
+	background: transparent;
+	border-color: transparent;
+}
+
+.react-flow__node.selected .aggzone.plain {
+	border-color: #aaa;
+}
+
+.aggzone-header {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	background: #fff;
+	border: 1px solid #999;
+	border-radius: 6px;
+	padding: 3px 8px;
+	font-size: 13px;
+	cursor: grab;
+	user-select: none;
+}
+
+/* コンパクト表示（結果のみ） */
+.aggzone-header.mini {
+	gap: 4px;
+	padding: 1px 6px;
+	font-size: 14px;
+}
+
+.aggzone-header.mini .aggzone-result {
+	font-size: 14px;
+}
+
+/* 枠なし＋コンパクト: 数字だけを表示（操作ボタンはホバー時に出す） */
+.aggzone.plain .aggzone-header.mini {
+	background: transparent;
+	border-color: transparent;
+	padding: 0;
+}
+
+.aggzone.plain .aggzone-header.mini .aggzone-plain,
+.aggzone.plain .aggzone-header.mini .aggzone-grip {
+	opacity: 0;
+}
+
+.aggzone.plain .aggzone-header.mini:hover .aggzone-plain,
+.aggzone.plain .aggzone-header.mini:hover .aggzone-grip {
+	opacity: 1;
+}
+
+.calcnode.mini.plain {
+	padding: 2px;
+}
+
+.calcnode.mini.plain .calc-mini-btn {
+	opacity: 0;
+}
+
+.calcnode.mini.plain:hover .calc-mini-btn {
+	opacity: 1;
+}
+
+/* ゾーンの文字サイズ（数値ピースと同じ段階 16/20/28/38） */
+.aggzone.size-s .aggzone-result {
+	font-size: 16px;
+}
+.aggzone.size-m .aggzone-result {
+	font-size: 20px;
+}
+.aggzone.size-l .aggzone-result {
+	font-size: 28px;
+}
+.aggzone.size-xl .aggzone-result {
+	font-size: 38px;
+}
+
+.aggzone-header.pos-br {
+	bottom: 6px;
+	right: 6px;
+}
+
+.aggzone-header.pos-top {
+	top: -1.5px;
+	left: 8px;
+}
+
+.aggzone-header.pos-bottom {
+	bottom: -1.5px;
+	left: 8px;
+}
+
+.aggzone-header.pos-right {
+	right: -1.5px;
+	top: 8px;
+	flex-direction: column;
+	padding: 6px 4px;
+}
+
+.aggzone-header.pos-left {
+	left: -1.5px;
+	top: 8px;
+	flex-direction: column;
+	padding: 6px 4px;
+}
+
+.aggzone-grip {
+	flex-shrink: 0;
+	color: #999;
+	display: block;
+}
+
+.aggzone-fn {
+	border: none;
+	background: transparent;
+	font-weight: 700;
+	color: #4466cc;
+	cursor: pointer;
+}
+
+.aggzone-result {
+	font-weight: 700;
+	font-size: 15px;
+	line-height: 1.1;
+}
+
+.aggzone-count {
+	color: #777;
+	font-size: 11px;
+}
+
+.aggzone-src {
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	color: #4466cc;
+	font-size: 13px;
+	padding: 0;
+}
+
+.aggzone-src.active {
+	background: #e3ecff;
+	border-radius: 4px;
+}
+
+.aggzone-pos {
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	color: #777;
+	font-size: 11px;
+	padding: 0;
+	line-height: 1;
+}
+
+.aggzone-plain {
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	color: #777;
+	font-size: 11px;
+	padding: 0;
+	line-height: 1;
+}
+
+.aggzone-plain.active {
+	background: #e3ecff;
+	border-radius: 4px;
+	color: #2244aa;
+}
+
+.aggzone-pos:hover {
+	color: #2244aa;
+}
+
+/* ---- edges / handles ---- */
+
+.react-flow__handle {
+	width: 8px;
+	height: 8px;
+	background: #4466cc;
+	border: 1.5px solid #fff;
+}
+
+.react-flow__node-vobject .react-flow__handle,
+.react-flow__node-zone .react-flow__handle {
+	opacity: 0.35;
+}
+
+.react-flow__node-vobject:hover .react-flow__handle,
+.react-flow__node-zone:hover .react-flow__handle,
+.react-flow__node-vobject.selected .react-flow__handle {
+	opacity: 1;
+}
+
+/* ゾーンはクリックスルーだがハンドルは操作可 */
+.react-flow__node-zone .react-flow__handle {
+	pointer-events: all;
+}
+
+/* ---- calc piece ---- */
+
+.calcnode {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	background: #fff;
+	border: 1.5px solid #4466cc;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+	padding: 8px 12px;
+	font-size: 13px;
+	cursor: grab;
+	user-select: none;
+}
+
+.calcnode.plain {
+	background: transparent;
+	border-color: transparent;
+	box-shadow: none;
+}
+
+.calcnode.align-l .calc-result {
+	text-align: left;
+}
+.calcnode.align-c .calc-result {
+	text-align: center;
+}
+.calcnode.align-r .calc-result {
+	text-align: right;
+}
+
+.calc-tools {
+	position: absolute;
+	bottom: calc(100% + 4px);
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	gap: 4px;
+	background: #fff;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	padding: 3px 6px;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+	white-space: nowrap;
+	z-index: 10;
+}
+
+.calc-tools button {
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	background: #fff;
+	font-size: 11px;
+	padding: 1px 6px;
+	cursor: pointer;
+	line-height: 1.4;
+}
+
+.calc-tools button.active {
+	background: #e3ecff;
+	border-color: #4466cc;
+	color: #2244aa;
+}
+
+.calcnode.hinted {
+	outline: 2px dashed #4466cc;
+	outline-offset: 3px;
+}
+
+.react-flow__node.selected .calcnode {
+	box-shadow: 0 0 0 2px rgba(68, 102, 204, 0.4);
+}
+
+.calc-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.calc-result-row {
+	border-top: 1px dashed #ddd;
+	padding-top: 4px;
+}
+
+.calc-eq {
+	color: #777;
+	font-weight: 700;
+}
+
+.calc-result {
+	font-weight: 700;
+	font-size: 18px;
+	flex: 1;
+}
+
+.calc-op,
+.calc-round {
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 12px;
+	padding: 1px 2px;
+}
+
+.calc-op {
+	font-weight: 700;
+	color: #4466cc;
+}
+
+.calc-round {
+	color: #777;
+	font-size: 11px;
+}
+
+.calc-operand {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	border: 1px solid #ddd;
+	border-radius: 5px;
+	padding: 2px 6px;
+	background: #f4f6ff;
+	max-width: 110px;
+}
+
+.calc-operand-tag {
+	font-size: 10px;
+	font-weight: 700;
+	color: #999;
+}
+
+.calc-operand-name {
+	max-width: 56px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+}
+
+.calc-operand-val {
+	font-weight: 700;
+}
+
+.calc-const {
+	background: #fff;
+}
+
+.calc-const input {
+	width: 56px;
+	border: none;
+	background: transparent;
+	font-size: 12px;
+	outline: none;
+}
+
+/* コンパクト表示 */
+.calcnode.mini {
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 6px 14px;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.calc-mini-btn {
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	background: #fff;
+	color: #999;
+	cursor: pointer;
+	font-size: 10px;
+	padding: 0 4px;
+	line-height: 1.5;
+}
+
+.calc-mini-btn:hover {
+	color: #4466cc;
+	border-color: #4466cc;
+}
+
+/* ---- line piece (罫線) ---- */
+
+.linenode {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.linenode-svg {
+	display: block;
+	overflow: visible;
+}
+
+.linenode-tools {
+	position: absolute;
+	bottom: calc(100% + 4px);
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	gap: 4px;
+	background: #fff;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	padding: 3px 6px;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+	white-space: nowrap;
+	z-index: 10;
+}
+
+.linenode-tools button {
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	background: #fff;
+	font-size: 11px;
+	padding: 1px 6px;
+	cursor: pointer;
+	line-height: 1.4;
+}
+
+.linenode-tools button.active {
+	background: #e3ecff;
+	border-color: #4466cc;
+	color: #2244aa;
+}
+
+/* ---- paper (印刷範囲ガイド) ---- */
+
+.paper {
+	position: absolute;
+	background: #fff;
+	border: 1px solid #b9c4d0;
+	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+	pointer-events: none;
+	z-index: -1;
+	box-sizing: border-box;
+}
+
+.paper-tag {
+	position: absolute;
+	top: -30px;
+	left: 0;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	background: #fff;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	padding: 3px 8px;
+	font-size: 12px;
+	color: #555;
+	cursor: grab;
+	pointer-events: all;
+	user-select: none;
+	white-space: nowrap;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.paper-tag-name {
+	font-weight: 600;
+}
+
+.paper-tag select,
+.paper-tag button {
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	background: #fff;
+	font-size: 11px;
+	cursor: pointer;
+	padding: 1px 4px;
+	line-height: 1.4;
+}
+
+/* ---- キャプチャ時に写らない装飾 ---- */
+
+.capturing .react-flow__handle,
+.capturing .react-flow__resize-control,
+.capturing .vobject-edtools,
+.capturing .calc-tools,
+.capturing .linenode-tools,
+.capturing .react-flow__background,
+.capturing .react-flow__edges,
+.capturing .react-flow__selection,
+.capturing .react-flow__nodesselection-rect,
+.capturing .paper {
+	display: none !important;
+}
+
+/* ---- 印刷 ---- */
+
+.print-stage {
+	position: fixed;
+	left: -10000px;
+	top: 0;
+	width: 10px;
+	height: 10px;
+	overflow: hidden;
+}
+
+@media print {
+	.react-flow,
+	.toolbar {
+		display: none !important;
+	}
+
+	.print-stage {
+		position: static;
+		left: auto;
+		width: auto;
+		height: auto;
+		overflow: visible;
+	}
+
+	.print-stage img {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+}
