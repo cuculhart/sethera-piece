@@ -6,6 +6,13 @@ export type AggLabelPos = 'br' | 'top' | 'right' | 'bottom' | 'left' | 'free'
 export type CalcOp = 'add' | 'sub' | 'mul' | 'div'
 export type RoundMode = 'none' | 'ceil' | 'floor' | 'round'
 
+/** 数値表示の書式。digits 省略=自動、comma=3桁区切り、hideZero=値0のとき非表示 */
+export type NumFmt = {
+	digits?: number
+	comma?: boolean
+	hideZero?: boolean
+}
+
 export type VObjectData = {
 	kind: VObjectKind
 	label: string
@@ -14,7 +21,7 @@ export type VObjectData = {
 	align?: 'l' | 'c' | 'r'
 	size?: 's' | 'm' | 'l' | 'xl'
 	bold?: boolean
-}
+} & NumFmt
 
 export type ZoneData = {
 	fn: AggFn
@@ -23,7 +30,7 @@ export type ZoneData = {
 	mini?: boolean
 	chipPos?: { x: number; y: number }
 	size?: 's' | 'm' | 'l' | 'xl'
-}
+} & NumFmt
 
 export type CalcData = {
 	op: CalcOp
@@ -33,12 +40,14 @@ export type CalcData = {
 	mini?: boolean
 	align?: 'l' | 'c' | 'r'
 	plain?: boolean
-}
+	size?: 's' | 'm' | 'l' | 'xl'
+} & NumFmt
 
 export type LineWeight = 'thin' | 'bold' | 'xbold' | 'dash'
 export type LineData = {
 	w: LineWeight
 	front?: boolean
+	rect?: boolean
 }
 
 export type VObjectNodeType = Node<VObjectData, 'vobject'>

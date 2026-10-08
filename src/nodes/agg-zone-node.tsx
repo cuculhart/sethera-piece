@@ -20,7 +20,7 @@ import { HintContext } from '../hint-context'
 import type { AggLabelPos, BoardNode, ZoneNodeType } from './types'
 
 // 様子見: プリセットは「下」と「自由」の2択に絞る（他は必要になれば戻す）
-const LABEL_POS_CYCLE: AggLabelPos[] = [
+export const LABEL_POS_CYCLE: AggLabelPos[] = [
 	// 'br',
 	// 'top',
 	// 'right',
@@ -28,7 +28,7 @@ const LABEL_POS_CYCLE: AggLabelPos[] = [
 	// 'left',
 	'free',
 ]
-const LABEL_POS_LABEL: Record<AggLabelPos, string> = {
+export const LABEL_POS_LABEL: Record<AggLabelPos, string> = {
 	br: '右下',
 	top: '上',
 	right: '右',
@@ -92,16 +92,19 @@ export function AggZoneNode({
 		})
 	}
 
-	// 「自由」位置: チップをゾーン内でドラッグして配置
+	// 「自由」位置: チップをドラッグして配置。
+	// ゾーン外にもはみ出せる（帳票のセル位置に数値を合わせるため）
 	const zw = width ?? 160
 	const zh = height ?? 100
+	const OVERX = 160
+	const OVERY = 48
 	const chipX = Math.max(
-		4,
-		Math.min(data.chipPos?.x ?? zw - 110, Math.max(4, zw - 40))
+		-OVERX,
+		Math.min(data.chipPos?.x ?? zw - 110, zw - 24 + OVERX)
 	)
 	const chipY = Math.max(
-		4,
-		Math.min(data.chipPos?.y ?? zh - 30, Math.max(4, zh - 26))
+		-OVERY,
+		Math.min(data.chipPos?.y ?? zh - 30, zh - 8 + OVERY)
 	)
 	const chipStyle: CSSProperties | undefined = isFree
 		? { left: chipX, top: chipY }
@@ -136,17 +139,17 @@ export function AggZoneNode({
 					updateNodeData(id, {
 						chipPos: {
 							x: Math.max(
-								0,
+								-OVERX,
 								Math.min(
 									d.ox + (e.clientX - d.px) / z,
-									Math.max(0, zw - 40)
+									zw - 24 + OVERX
 								)
 							),
 							y: Math.max(
-								0,
+								-OVERY,
 								Math.min(
 									d.oy + (e.clientY - d.py) / z,
-									Math.max(0, zh - 24)
+									zh - 8 + OVERY
 								)
 							),
 						},
@@ -185,7 +188,11 @@ export function AggZoneNode({
 						/>
 					</svg>
 					<span className="aggzone-result">
-						{result === null ? '—' : formatNumber(result)}
+						{result === null
+							? '—'
+							: data.hideZero && result === 0
+								? ''
+								: formatNumber(result, data.digits, data.comma)}
 					</span>
 					<button
 						className="aggzone-plain nodrag"
@@ -233,7 +240,11 @@ export function AggZoneNode({
 					))}
 				</select>
 				<span className="aggzone-result">
-					{result === null ? '—' : formatNumber(result)}
+					{result === null
+						? '—'
+						: data.hideZero && result === 0
+							? ''
+							: formatNumber(result, data.digits, data.comma)}
 				</span>
 				{fn !== 'count' && (
 					<span className="aggzone-count">n={members.length}</span>

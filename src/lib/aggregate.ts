@@ -18,8 +18,16 @@ export function aggregate(fn: AggFn, values: number[]): number | null {
 	}
 }
 
-export function formatNumber(n: number): string {
-	return Number.isInteger(n) ? String(n) : String(Math.round(n * 1000) / 1000)
+/** digits 省略=自動（小数3桁まで・末尾0なし）。comma=true で3桁区切り */
+export function formatNumber(n: number, digits?: number, comma?: boolean): string {
+	if (digits === undefined && comma !== true) {
+		return Number.isInteger(n) ? String(n) : String(Math.round(n * 1000) / 1000)
+	}
+	return n.toLocaleString('en-US', {
+		useGrouping: comma === true,
+		minimumFractionDigits: digits ?? 0,
+		maximumFractionDigits: digits ?? 3,
+	})
 }
 
 export interface Bounds {

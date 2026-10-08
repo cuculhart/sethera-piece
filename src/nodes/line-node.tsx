@@ -29,7 +29,21 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 	return (
 		<div className="linenode">
 			<svg className="linenode-svg" width={w} height={h}>
-				{horiz ? (
+				{data.rect ? (
+					// 矩形はボックス境界上にストローク中心を置く（外側半分は
+					// overflow:visible で描画）。隣接矩形の共有辺が同一グリッド座標に
+					// なるため完全に重なり、1本の線に見える
+					<rect
+						x={0}
+						y={0}
+						width={w}
+						height={h}
+						fill="none"
+						stroke="#333"
+						strokeWidth={s.width}
+						strokeDasharray={s.dash}
+					/>
+				) : horiz ? (
 					<line
 						x1={0}
 						y1={off}

@@ -15,6 +15,7 @@ import {
 	ROUND_LABEL,
 	ROUND_MODES,
 	nodeValue,
+	numFmtOf,
 	operandSource,
 } from '../lib/calc'
 import { HintContext } from '../hint-context'
@@ -28,7 +29,7 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 	const value = nodeValue(id, nodes, edges)
 	const aSrc = operandSource(edges, id, 'a')
 	const bSrc = operandSource(edges, id, 'b')
-	const cls = `calcnode align-${data.align ?? 'c'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}`
+	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}`
 
 	const tools = selected ? (
 		<div className="calc-tools nodrag">
@@ -77,7 +78,11 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 				/>
 				<Handle type="source" id="out" position={Position.Right} />
 				<span className="calc-result">
-					{value === null ? '—' : formatNumber(value)}
+					{value === null
+						? '—'
+						: data.hideZero && value === 0
+							? ''
+							: formatNumber(value, data.digits, data.comma)}
 				</span>
 				<button
 					className="calc-mini-btn nodrag"
@@ -143,7 +148,11 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 			<div className="calc-row calc-result-row">
 				<span className="calc-eq">=</span>
 				<span className="calc-result">
-					{value === null ? '—' : formatNumber(value)}
+					{value === null
+						? '—'
+						: data.hideZero && value === 0
+							? ''
+							: formatNumber(value, data.digits, data.comma)}
 				</span>
 				<button
 					className="calc-mini-btn nodrag"
@@ -194,6 +203,13 @@ function Operand({
 	}
 	const src = nodes.find((n) => n.id === srcId)
 	const v = nodeValue(srcId, nodes, edges)
+	const fmt = numFmtOf(src)
+	const disp =
+		v === null
+			? '—'
+			: fmt.hideZero && v === 0
+				? ''
+				: formatNumber(v, fmt.digits, fmt.comma)
 	const name =
 		src?.type === 'vobject'
 			? src.data.label || '値'
@@ -201,15 +217,10 @@ function Operand({
 				? 'Σゾーン'
 				: '計算'
 	return (
-		<span
-			className="calc-operand"
-			title={`${name}: ${v === null ? '—' : formatNumber(v)}`}
-		>
+		<span className="calc-operand" title={`${name}: ${disp}`}>
 			<span className="calc-operand-tag">{tag}</span>
 			<span className="calc-operand-name">{name}</span>
-			<span className="calc-operand-val">
-				{v === null ? '—' : formatNumber(v)}
-			</span>
+			<span className="calc-operand-val">{disp}</span>
 		</span>
 	)
 }

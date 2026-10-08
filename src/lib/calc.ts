@@ -1,6 +1,6 @@
 import type { Edge } from '@xyflow/react'
 import { aggregate, contains, type Bounds } from './aggregate'
-import type { BoardNode, CalcOp, RoundMode } from '../nodes/types'
+import type { BoardNode, CalcOp, NumFmt, RoundMode } from '../nodes/types'
 
 export const CALC_OPS: CalcOp[] = ['add', 'sub', 'mul', 'div']
 export const CALC_OP_LABEL: Record<CalcOp, string> = {
@@ -68,6 +68,16 @@ export function operandSource(
 		(e) => e.target === calcId && e.targetHandle === handle
 	)
 	return e?.source ?? null
+}
+
+/** ノードの表示書式を取得（line 等の非数値ノードは空） */
+export function numFmtOf(n: BoardNode | undefined): NumFmt {
+	if (!n || n.type === 'line') return {}
+	return {
+		digits: n.data.digits,
+		comma: n.data.comma,
+		hideZero: n.data.hideZero,
+	}
 }
 
 /** ノードの数値を解決。循環参照は visited で検出して null。 */

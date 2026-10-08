@@ -13,6 +13,7 @@ import {
 	type NodeProps,
 } from '@xyflow/react'
 import { HintContext } from '../hint-context'
+import { formatNumber } from '../lib/aggregate'
 import type { VObjectData, VObjectNodeType } from './types'
 
 export const PIECE_COLORS: Record<
@@ -61,12 +62,16 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 			) : (
 				<>
 					{showLabel && <div className="vobject-label">{label}</div>}
-					{showValue && value !== null && (
-						<div className="vobject-value">{value}</div>
-					)}
+					{showValue &&
+						value !== null &&
+						!(data.hideZero && value === 0) && (
+							<div className="vobject-value">
+								{formatNumber(value, data.digits, data.comma)}
+							</div>
+						)}
 				</>
 			)}
-			<NodeResizer isVisible={selected} minWidth={64} minHeight={28} />
+			<NodeResizer isVisible={selected} minWidth={36} minHeight={28} />
 			<Handle type="source" id="out" position={Position.Right} />
 		</div>
 	)

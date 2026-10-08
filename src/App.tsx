@@ -38,6 +38,7 @@ import { AggZoneNode } from './nodes/agg-zone-node'
 import { CalcNode } from './nodes/calc-node'
 import { LineNode } from './nodes/line-node'
 import { VObjectNode } from './nodes/vobject-node'
+import { Inspector } from './inspector'
 import { HintContext } from './hint-context'
 import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
 
@@ -45,7 +46,7 @@ type Snapshot = { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg }
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.1.0'
+const APP_VERSION = '0.2.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 
@@ -128,6 +129,8 @@ function Board() {
 	const [gridOn, setGridOn] = useState(true)
 	const [snapOn, setSnapOn] = useState(false)
 	const [lineMode, setLineMode] = useState(false)
+	const [zoneDraw, setZoneDraw] = useState(false)
+	const zoneDrawStart = useRef<{ x: number; y: number } | null>(null)
 	const [tbCollapsed, setTbCollapsed] = useState(false)
 	const [modal, setModal] = useState<'about' | 'reset' | null>(null)
 	const [hintedIds, setHintedIds] = useState<ReadonlySet<string>>(new Set())
@@ -451,15 +454,18 @@ function Board() {
 		const node: VObjectNodeType = {
 			id: crypto.randomUUID(),
 			type: 'vobject',
-			position: { x: c.x - 100 + offset, y: c.y - 20 + offset },
-			width: 200,
-			height: 40,
+			position: { x: c.x - 60 + offset, y: c.y - 20 + offset },
+			// 初期サイズは1行分（複数行はユーザーがリサイズして広げる）
+			width: kind === 'pair' ? 144 : 120,
+			height: kind === 'pair' ? 60 : 36,
 			zIndex: 1,
 			data: {
 				kind,
 				label: kind === 'number' ? '' : 'テキスト',
 				value: kind === 'text' ? null : 0,
 				color: 'yellow',
+				// 数値は帳票の慣習で右揃えを既定にする
+				align: kind === 'number' ? 'r' : 'c',
 			},
 		}
 		setNodes((nds) => [...nds, node])
@@ -477,7 +483,13 @@ function Board() {
 				type: 'calc',
 				position: { x: c.x - 90 + offset, y: c.y + 60 + offset },
 				zIndex: 1,
-				data: { op: 'mul', round: 'none', constA: null, constB: null },
+				data: {
+					op: 'mul',
+					round: 'none',
+					constA: null,
+					constB: null,
+					align: 'r',
+				},
 			},
 		])
 	}
@@ -495,6 +507,23 @@ function Board() {
 				height: GRID,
 				zIndex: 0,
 				data: { w: 'thin' },
+			},
+		])
+	}
+
+	const addRect = () => {
+		record('app')
+		const c = viewportCenter()
+		setNodes((nds) => [
+			...nds,
+			{
+				id: crypto.randomUUID(),
+				type: 'line',
+				position: { x: c.x - 120, y: c.y - 90 },
+				width: 240,
+				height: 180,
+				zIndex: 0,
+				data: { w: 'thin', rect: true },
 			},
 		])
 	}
@@ -527,21 +556,74 @@ function Board() {
 					data: { fn: 'sum', labelPos: 'bottom' },
 				},
 			])
-		} else {
-			const c = viewportCenter()
+		}
+	}
+
+	// ゾーン描画モード: 左ドラッグの選択マーキーを流用して対角2点で作成。
+	// 角座標は常にグリッド吸着（罫線と同じ思想）
+	const onSelectionStart = useCallback(
+		(e: { clientX: number; clientY: number }) => {
+			if (!zoneDraw) return
+			zoneDrawStart.current = { x: e.clientX, y: e.clientY }
+		},
+		[zoneDraw]
+	)
+	const onSelectionEnd = useCallback(
+		(e: { clientX: number; clientY: number }) => {
+			if (!zoneDraw || !zoneDrawStart.current) return
+			const a = rf.screenToFlowPosition(zoneDrawStart.current)
+			const b = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+			zoneDrawStart.current = null
+			setZoneDraw(false)
+			const x0 = Math.min(a.x, b.x)
+			const y0 = Math.min(a.y, b.y)
+			const x1 = Math.max(a.x, b.x)
+			const y1 = Math.max(a.y, b.y)
+			// 微小ドラッグは誤操作としてキャンセル
+			if (x1 - x0 < 24 || y1 - y0 < 24) return
+			const sx = Math.round(x0 / GRID) * GRID
+			const sy = Math.round(y0 / GRID) * GRID
+			const w = Math.round(x1 / GRID) * GRID - sx
+			const h = Math.round(y1 / GRID) * GRID - sy
+			record('app')
+			const id = crypto.randomUUID()
 			setNodes((nds) => [
-				...nds,
+				// マーキーで拾われたピースの選択は解除し、新ゾーンを選択状態に
+				// （zIndex 0 で背面に行っても選択枠で位置が分かる）
+				...nds.map((n) => (n.selected ? { ...n, selected: false } : n)),
 				{
 					id,
 					type: 'zone',
-					position: { x: c.x - 160, y: c.y - 120 },
-					width: 320,
-					height: 240,
+					position: { x: sx, y: sy },
+					width: w,
+					height: h,
 					zIndex: 0,
 					dragHandle: '.aggzone-header',
+					selected: true,
 					data: { fn: 'sum', labelPos: 'bottom' },
 				},
 			])
+		},
+		[zoneDraw, rf, record]
+	)
+
+	// ゾーン描画モードをEscで解除
+	useEffect(() => {
+		if (!zoneDraw) return
+		const onEsc = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') setZoneDraw(false)
+		}
+		window.addEventListener('keydown', onEsc)
+		return () => window.removeEventListener('keydown', onEsc)
+	}, [zoneDraw])
+
+	// Σボタン: ピース選択中は従来どおり即作成、未選択時は描画モードのON/OFF
+	const onZoneButton = () => {
+		if (nodes.some((n) => n.selected && n.type === 'vobject')) {
+			setZoneDraw(false)
+			createZone()
+		} else {
+			setZoneDraw((v) => !v)
 		}
 	}
 
@@ -650,6 +732,48 @@ function Board() {
 	const selectedCount = nodes.filter(
 		(n) => n.selected === true && n.type === 'vobject'
 	).length
+	const selNodes = nodes.filter((n) => n.selected === true)
+
+	// プロパティペインからの一括適用。連続変更は 500ms 窓で履歴統合
+	const applyData = useCallback(
+		(ids: string[], patch: Record<string, unknown>) => {
+			record('attr', 500)
+			const set = new Set(ids)
+			setNodes((nds) =>
+				nds.map((n) =>
+					set.has(n.id)
+						? ({ ...n, data: { ...n.data, ...patch } } as BoardNode)
+						: n
+				)
+			)
+		},
+		[record]
+	)
+	const applyNode = useCallback(
+		(
+			ids: string[],
+			mk: (
+				n: BoardNode
+			) => Omit<Partial<BoardNode>, 'data'> & {
+				data?: Record<string, unknown>
+			}
+		) => {
+			record('attr', 500)
+			const set = new Set(ids)
+			setNodes((nds) =>
+				nds.map((n) => {
+					if (!set.has(n.id)) return n
+					const p = mk(n)
+					return {
+						...n,
+						...p,
+						data: { ...n.data, ...(p.data ?? {}) },
+					} as BoardNode
+				})
+			)
+		},
+		[record]
+	)
 
 	return (
 		<div className={printImg ? 'board hasimg' : 'board'} ref={wrapRef}>
@@ -684,6 +808,11 @@ function Board() {
 					onMoveEnd={(_e, vp) =>
 						localStorage.setItem(VP_KEY, JSON.stringify(vp))
 					}
+					onSelectionStart={onSelectionStart}
+					onSelectionEnd={onSelectionEnd}
+					onPaneClick={() => {
+						if (zoneDraw) setZoneDraw(false)
+					}}
 					{...(savedViewport ? { defaultViewport: savedViewport } : { fitView: true })}
 				>
 					{gridOn && (
@@ -699,6 +828,15 @@ function Board() {
 						/>
 					)}
 				</ReactFlow>
+				{selNodes.length > 0 && (
+					<Inspector
+						sel={selNodes}
+						nodes={nodes}
+						edges={edges}
+						applyData={applyData}
+						applyNode={applyNode}
+					/>
+				)}
 				<div className={tbCollapsed ? 'toolbar collapsed' : 'toolbar'}>
 					<button
 						className="tbtoggle"
@@ -725,6 +863,9 @@ function Board() {
 					<button data-icon="─" onClick={addLine} title="罫線（横長=水平線/縦長=垂直線。線は枠の上辺・左辺に引かれる。選択中に線種変更）">
 						罫線
 					</button>
+					<button data-icon="□" onClick={addRect} title="矩形罫線（4辺の枠。グリッド吸着で隣接矩形の辺が完全に重なる）">
+						矩形
+					</button>
 					<button
 						data-icon="✎"
 						className={lineMode ? 'active' : ''}
@@ -733,7 +874,16 @@ function Board() {
 					>
 						線編集
 					</button>
-					<button data-icon="Σ" title="選択中のピースを囲む集計ゾーン" onClick={createZone}>
+					<button
+						data-icon="Σ"
+						className={zoneDraw ? 'active' : ''}
+						title={
+							selectedCount > 0
+								? '選択中のピースを囲む集計ゾーン'
+								: '集計ゾーンをドラッグで描画（対角2点を指定。Esc/クリックでキャンセル）'
+						}
+						onClick={onZoneButton}
+					>
 						Σ 集計ゾーン{selectedCount > 0 ? ` (${selectedCount})` : ''}
 					</button>
 					<button

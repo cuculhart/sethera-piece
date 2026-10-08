@@ -112,6 +112,94 @@ body,
 	font-weight: 600;
 }
 
+/* ---- inspector: 右側のプロパティペイン ---- */
+
+.inspector {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	z-index: 300;
+	width: 200px;
+	max-height: calc(100% - 24px);
+	overflow-y: auto;
+	padding: 8px 10px;
+	background: rgba(255, 255, 255, 0.92);
+	border: 1px solid #d0d0d0;
+	border-radius: 10px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	font-size: 12px;
+}
+
+.insp-head {
+	font-weight: 700;
+	font-size: 12px;
+	padding: 2px 0;
+}
+
+.insp-sec {
+	border-top: 1px solid #eee;
+	padding: 6px 0;
+}
+
+.insp-title {
+	font-size: 11px;
+	font-weight: 600;
+	color: #777;
+}
+
+.insp-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 6px;
+	flex-wrap: wrap;
+}
+
+.insp-label {
+	width: 32px;
+	flex-shrink: 0;
+	font-size: 11px;
+	color: #666;
+}
+
+.insp-text {
+	flex: 1;
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+	border: 1px solid #bbb;
+	border-radius: 4px;
+	font-size: 12px;
+	font-family: inherit;
+	padding: 2px 4px;
+}
+
+textarea.insp-text {
+	resize: none;
+	line-height: 1.4;
+}
+
+.insp-num {
+	text-align: right;
+}
+
+.insp-select {
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	background: #fff;
+	font-size: 12px;
+	padding: 1px 2px;
+}
+
+.insp-src {
+	font-size: 11px;
+	color: #4466cc;
+}
+
+.inspector .vobject-align-btn {
+	font-size: 11px;
+}
+
 /* ---- value object (piece card) ---- */
 
 .vobject {
@@ -193,6 +281,11 @@ body,
 .vobject.align-r .vobject-label,
 .vobject.align-r .vobject-value {
 	text-align: right;
+}
+
+/* 右揃えのとき右余白を詰める（数値を箱の右端=セル境界に近づける） */
+.vobject.align-r {
+	padding-right: 3px;
 }
 
 .vobject.size-s .vobject-label {
@@ -350,20 +443,24 @@ textarea.vobject-label-input {
 	font-size: 14px;
 }
 
-/* 枠なし＋コンパクト: 数字だけを表示（操作ボタンはホバー時に出す） */
-.aggzone.plain .aggzone-header.mini {
+/* 枠なしゾーン: チップも枠なしにして数値だけ残す（帳票のセルに収める用）。
+   結果以外の操作要素はホバー/選択時のみ表示 */
+.aggzone.plain .aggzone-header {
 	background: transparent;
 	border-color: transparent;
+	padding: 0 2px;
+}
+
+.aggzone.plain .aggzone-header.mini {
 	padding: 0;
 }
 
-.aggzone.plain .aggzone-header.mini .aggzone-plain,
-.aggzone.plain .aggzone-header.mini .aggzone-grip {
+.aggzone.plain .aggzone-header > :not(.aggzone-result) {
 	opacity: 0;
 }
 
-.aggzone.plain .aggzone-header.mini:hover .aggzone-plain,
-.aggzone.plain .aggzone-header.mini:hover .aggzone-grip {
+.aggzone.plain .aggzone-header:hover > :not(.aggzone-result),
+.react-flow__node.selected .aggzone.plain .aggzone-header > :not(.aggzone-result) {
 	opacity: 1;
 }
 
@@ -371,11 +468,17 @@ textarea.vobject-label-input {
 	padding: 2px;
 }
 
-.calcnode.mini.plain .calc-mini-btn {
+/* コンパクト表示: ƒx は結果の右上に浮かせ、レイアウトを食わない
+   （数値が右端にぴったり揃うように） */
+.calcnode.mini .calc-mini-btn {
+	position: absolute;
+	top: -10px;
+	right: -10px;
 	opacity: 0;
 }
 
-.calcnode.mini.plain:hover .calc-mini-btn {
+.calcnode.mini:hover .calc-mini-btn,
+.react-flow__node.selected .calcnode.mini .calc-mini-btn {
 	opacity: 1;
 }
 
@@ -550,6 +653,14 @@ textarea.vobject-label-input {
 	text-align: right;
 }
 
+.calcnode.align-r {
+	padding-right: 5px;
+}
+
+.calcnode.mini.align-r {
+	padding-right: 8px;
+}
+
 .calc-tools {
 	position: absolute;
 	bottom: calc(100% + 4px);
@@ -611,6 +722,20 @@ textarea.vobject-label-input {
 	font-weight: 700;
 	font-size: 18px;
 	flex: 1;
+}
+
+/* ゾーン・ピースと同じ段階 16/20/28/38 */
+.calcnode.size-s .calc-result {
+	font-size: 16px;
+}
+.calcnode.size-m .calc-result {
+	font-size: 20px;
+}
+.calcnode.size-l .calc-result {
+	font-size: 28px;
+}
+.calcnode.size-xl .calc-result {
+	font-size: 38px;
 }
 
 .calc-op,
@@ -850,6 +975,7 @@ textarea.vobject-label-input {
 
 @media print {
 	.toolbar,
+	.inspector,
 	.react-flow {
 		display: none !important;
 	}
