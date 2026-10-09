@@ -183,6 +183,11 @@ textarea.insp-text {
 	text-align: right;
 }
 
+.insp-size {
+	flex: 0 0 56px;
+	width: 56px;
+}
+
 .insp-select {
 	border: 1px solid #ddd;
 	border-radius: 4px;
@@ -917,6 +922,20 @@ textarea.vobject-label-input {
 	cursor: pointer;
 	padding: 1px 4px;
 	line-height: 1.4;
+}
+
+/* ---- 数値表示の装飾（太さ・負数赤）。各 700 定義より後に置いて上書きする ---- */
+
+.numw-thin {
+	font-weight: 400;
+}
+
+.numw-normal {
+	font-weight: 500;
+}
+
+.num-neg {
+	color: #c92a2a;
 }
 
 /* ---- キャプチャ時に写らない装飾 ---- */

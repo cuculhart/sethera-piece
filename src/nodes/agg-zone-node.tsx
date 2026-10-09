@@ -15,8 +15,9 @@ import {
 	type NodeProps,
 } from '@xyflow/react'
 import { AGG_FNS, aggregate, formatNumber, type AggFn } from '../lib/aggregate'
-import { nodeValue, zoneMembers } from '../lib/calc'
+import { nodeValue, numCls, zoneMembers } from '../lib/calc'
 import { HintContext } from '../hint-context'
+import { TEXT_COLORS } from './vobject-node'
 import type { AggLabelPos, BoardNode, ZoneNodeType } from './types'
 
 // 様子見: プリセットは「下」と「自由」の2択に絞る（他は必要になれば戻す）
@@ -106,9 +107,10 @@ export function AggZoneNode({
 		-OVERY,
 		Math.min(data.chipPos?.y ?? zh - 30, zh - 8 + OVERY)
 	)
-	const chipStyle: CSSProperties | undefined = isFree
-		? { left: chipX, top: chipY }
-		: undefined
+	const chipStyle: CSSProperties = {
+		...(isFree ? { left: chipX, top: chipY } : {}),
+		...(data.textColor ? { color: TEXT_COLORS[data.textColor] } : {}),
+	}
 	const chipDrag = useRef<{
 		px: number
 		py: number
@@ -187,12 +189,12 @@ export function AggZoneNode({
 							strokeLinejoin="round"
 						/>
 					</svg>
-					<span className="aggzone-result">
+					<span className={`aggzone-result${numCls(data, result)}`}>
 						{result === null
 							? '—'
 							: data.hideZero && result === 0
 								? ''
-								: formatNumber(result, data.digits, data.comma)}
+								: formatNumber(result, data.digits, data.comma, data.neg)}
 					</span>
 					<button
 						className="aggzone-plain nodrag"
@@ -239,12 +241,12 @@ export function AggZoneNode({
 						</option>
 					))}
 				</select>
-				<span className="aggzone-result">
+				<span className={`aggzone-result${numCls(data, result)}`}>
 					{result === null
 						? '—'
 						: data.hideZero && result === 0
 							? ''
-							: formatNumber(result, data.digits, data.comma)}
+							: formatNumber(result, data.digits, data.comma, data.neg)}
 				</span>
 				{fn !== 'count' && (
 					<span className="aggzone-count">n={members.length}</span>

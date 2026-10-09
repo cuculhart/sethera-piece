@@ -1,4 +1,5 @@
 import { NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react'
+import { PIECE_COLORS } from './vobject-node'
 import type { LineNodeType, LineWeight } from './types'
 
 const GRID = 12
@@ -38,7 +39,11 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 						y={0}
 						width={w}
 						height={h}
-						fill="none"
+						fill={
+							data.fill
+								? (PIECE_COLORS[data.fill]?.fill ?? 'none')
+								: 'none'
+						}
 						stroke="#333"
 						strokeWidth={s.width}
 						strokeDasharray={s.dash}

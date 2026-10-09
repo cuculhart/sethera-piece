@@ -46,7 +46,7 @@ type Snapshot = { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg }
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.2.0'
+const APP_VERSION = '0.3.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 

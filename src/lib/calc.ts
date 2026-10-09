@@ -77,7 +77,24 @@ export function numFmtOf(n: BoardNode | undefined): NumFmt {
 		digits: n.data.digits,
 		comma: n.data.comma,
 		hideZero: n.data.hideZero,
+		numWeight: n.data.numWeight,
+		neg: n.data.neg,
 	}
+}
+
+/** 数値表示要素に付ける装飾クラス（細さ・負数赤） */
+export function numCls(fmt: NumFmt, v: number | null): string {
+	const w =
+		fmt.numWeight === 'thin'
+			? ' numw-thin'
+			: fmt.numWeight === 'normal'
+				? ' numw-normal'
+				: ''
+	const r =
+		(fmt.neg === 'red' || fmt.neg === 'redminus') && (v ?? 0) < 0
+			? ' num-neg'
+			: ''
+	return w + r
 }
 
 /** ノードの数値を解決。循環参照は visited で検出して null。 */

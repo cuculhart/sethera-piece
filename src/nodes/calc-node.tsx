@@ -15,10 +15,12 @@ import {
 	ROUND_LABEL,
 	ROUND_MODES,
 	nodeValue,
+	numCls,
 	numFmtOf,
 	operandSource,
 } from '../lib/calc'
 import { HintContext } from '../hint-context'
+import { TEXT_COLORS } from './vobject-node'
 import type { BoardNode, CalcNodeType, CalcOp, RoundMode } from './types'
 
 export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
@@ -30,6 +32,9 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 	const aSrc = operandSource(edges, id, 'a')
 	const bSrc = operandSource(edges, id, 'b')
 	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}`
+	const style = data.textColor
+		? { color: TEXT_COLORS[data.textColor] }
+		: undefined
 
 	const tools = selected ? (
 		<div className="calc-tools nodrag">
@@ -63,7 +68,7 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 
 	if (data.mini) {
 		return (
-			<div className={`${cls} mini`}>
+			<div className={`${cls} mini`} style={style}>
 				<Handle
 					type="target"
 					id="a"
@@ -77,12 +82,12 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 					style={{ top: '72%' }}
 				/>
 				<Handle type="source" id="out" position={Position.Right} />
-				<span className="calc-result">
+				<span className={`calc-result${numCls(data, value)}`}>
 					{value === null
 						? '—'
 						: data.hideZero && value === 0
 							? ''
-							: formatNumber(value, data.digits, data.comma)}
+							: formatNumber(value, data.digits, data.comma, data.neg)}
 				</span>
 				<button
 					className="calc-mini-btn nodrag"
@@ -99,7 +104,7 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 	}
 
 	return (
-		<div className={cls}>
+		<div className={cls} style={style}>
 			<Handle
 				type="target"
 				id="a"
@@ -147,12 +152,12 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 			</div>
 			<div className="calc-row calc-result-row">
 				<span className="calc-eq">=</span>
-				<span className="calc-result">
+				<span className={`calc-result${numCls(data, value)}`}>
 					{value === null
 						? '—'
 						: data.hideZero && value === 0
 							? ''
-							: formatNumber(value, data.digits, data.comma)}
+							: formatNumber(value, data.digits, data.comma, data.neg)}
 				</span>
 				<button
 					className="calc-mini-btn nodrag"
@@ -209,7 +214,7 @@ function Operand({
 			? '—'
 			: fmt.hideZero && v === 0
 				? ''
-				: formatNumber(v, fmt.digits, fmt.comma)
+				: formatNumber(v, fmt.digits, fmt.comma, fmt.neg)
 	const name =
 		src?.type === 'vobject'
 			? src.data.label || '値'
@@ -220,7 +225,7 @@ function Operand({
 		<span className="calc-operand" title={`${name}: ${disp}`}>
 			<span className="calc-operand-tag">{tag}</span>
 			<span className="calc-operand-name">{name}</span>
-			<span className="calc-operand-val">{disp}</span>
+			<span className={`calc-operand-val${numCls(fmt, v)}`}>{disp}</span>
 		</span>
 	)
 }

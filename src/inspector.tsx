@@ -4,7 +4,7 @@ import {
 	type KeyboardEvent,
 	type ReactNode,
 } from 'react'
-import { AGG_FNS, type AggFn } from './lib/aggregate'
+import { AGG_FNS, contains, type AggFn } from './lib/aggregate'
 import {
 	CALC_OPS,
 	CALC_OP_LABEL,
@@ -14,7 +14,7 @@ import {
 } from './lib/calc'
 import type { Edge } from '@xyflow/react'
 import { LABEL_POS_CYCLE, LABEL_POS_LABEL } from './nodes/agg-zone-node'
-import { PIECE_COLORS } from './nodes/vobject-node'
+import { PIECE_COLORS, TEXT_COLORS } from './nodes/vobject-node'
 import type {
 	AggLabelPos,
 	BoardNode,
@@ -71,6 +71,36 @@ const DIGIT_LABEL: Record<(typeof DIGIT_OPTS)[number], string> = {
 	'2': '2',
 	'3': '3',
 }
+const NUM_WEIGHT_OPTS = [
+	['thin', '細'],
+	['normal', '標準'],
+	['bold', '太'],
+] as const
+const NEG_OPTS = [
+	['minus', 'ー'],
+	['paren', '（）'],
+	['tri', '▲'],
+	['red', '赤'],
+	['redminus', '赤ー'],
+] as const
+const TEXT_COLOR_LABEL: Record<string, string> = {
+	auto: '自動',
+	black: '黒',
+	gray: 'グレー',
+	red: '赤',
+	blue: '青',
+	green: '緑',
+}
+// サイズステッパーの刻みと各ノード型の最小サイズ
+const SIZE_STEP = 12
+const MIN_SIZE: Record<string, [number, number]> = {
+	vobject: [36, 24],
+	line: [12, 12],
+	calc: [64, 32],
+	zone: [72, 48],
+}
+const minOf = (n: BoardNode, axis: 0 | 1) =>
+	(n.type ? MIN_SIZE[n.type] : undefined)?.[axis] ?? SIZE_STEP
 
 // 全件同一値ならそれを返す。混在または空なら null（「未決定」表示用）
 function common<T, V>(arr: T[], get: (t: T) => V): V | null {
@@ -88,39 +118,97 @@ function srcName(nodes: BoardNode[], id: string): string {
 	return '計算'
 }
 
-// 数値書式（カンマ・小数桁数）の編集行。vobject/calc/zone 共用
+type NumericNode = VObjectNodeType | CalcNodeType | ZoneNodeType
+
+// 数値書式（カンマ・小数桁数・0非表示）+ 表記（太さ・負数）の編集行
 function FmtRow({
 	nodes,
 	ids,
 	applyData,
 }: {
-	nodes: (VObjectNodeType | CalcNodeType | ZoneNodeType)[]
+	nodes: NumericNode[]
 	ids: string[]
 	applyData: ApplyData
 }) {
 	const d = common(nodes, (n) => n.data.digits)
 	return (
-		<Row label="書式">
-			<Toggle
-				label="カンマ"
-				on={common(nodes, (n) => !!n.data.comma) === true}
-				onFlip={(v) => applyData(ids, { comma: v })}
-			/>
-			<Toggle
-				label="0非表示"
-				on={common(nodes, (n) => !!n.data.hideZero) === true}
-				onFlip={(v) => applyData(ids, { hideZero: v })}
-			/>
-			<Sel<string>
-				options={DIGIT_OPTS}
-				label={DIGIT_LABEL}
-				current={d === null ? null : d === undefined ? 'auto' : String(d)}
-				onPick={(v) =>
-					applyData(ids, {
-						digits: v === 'auto' ? undefined : parseInt(v, 10),
-					})
-				}
-			/>
+		<>
+			<Row label="書式">
+				<Toggle
+					label="カンマ"
+					on={common(nodes, (n) => !!n.data.comma) === true}
+					onFlip={(v) => applyData(ids, { comma: v })}
+				/>
+				<Toggle
+					label="0非表示"
+					on={common(nodes, (n) => !!n.data.hideZero) === true}
+					onFlip={(v) => applyData(ids, { hideZero: v })}
+				/>
+				<Sel<string>
+					options={DIGIT_OPTS}
+					label={DIGIT_LABEL}
+					current={d === null ? null : d === undefined ? 'auto' : String(d)}
+					onPick={(v) =>
+						applyData(ids, {
+							digits: v === 'auto' ? undefined : parseInt(v, 10),
+						})
+					}
+				/>
+			</Row>
+			<Row label="表記">
+				<Btns
+					options={NUM_WEIGHT_OPTS}
+					current={common(nodes, (n) => n.data.numWeight ?? 'bold')}
+					onPick={(v) => applyData(ids, { numWeight: v })}
+				/>
+				<Btns
+					options={NEG_OPTS}
+					current={common(nodes, (n) => n.data.neg ?? 'minus')}
+					onPick={(v) => applyData(ids, { neg: v })}
+				/>
+			</Row>
+		</>
+	)
+}
+
+// 文字色スウォッチ行。'auto' はテーマ既定色（textColor を消す）
+function TextColorRow({
+	nodes,
+	ids,
+	applyData,
+}: {
+	nodes: NumericNode[]
+	ids: string[]
+	applyData: ApplyData
+}) {
+	const cur = common(nodes, (n) => n.data.textColor ?? 'auto')
+	return (
+		<Row label="文字色">
+			<div className="vobject-colors">
+				{Object.keys(TEXT_COLORS).map((name) => (
+					<button
+						key={name}
+						className={`vobject-swatch${cur === name ? ' active' : ''}`}
+						style={
+							name === 'auto'
+								? {
+										backgroundColor: '#fff',
+										border: '1px dashed #999',
+									}
+								: {
+										backgroundColor: TEXT_COLORS[name],
+										borderColor: TEXT_COLORS[name],
+									}
+						}
+						title={TEXT_COLOR_LABEL[name] ?? name}
+						onClick={() =>
+							applyData(ids, {
+								textColor: name === 'auto' ? undefined : name,
+							})
+						}
+					/>
+				))}
+			</div>
 		</Row>
 	)
 }
@@ -269,6 +357,62 @@ function TextField({
 	)
 }
 
+// サイズ調整（−/＋ ボタン＋直接入力）。エッジ掴みが難しい代替操作。
+// value=null は混在表示。＋/− は各ノードの現サイズから相対増減、
+// 直接入力は全選択に絶対値を適用する
+function SizeCtl({
+	value,
+	onStep,
+	onSet,
+}: {
+	value: number | null
+	onStep: (d: number) => void
+	onSet: (v: number) => void
+}) {
+	const [draft, setDraft] = useState(value === null ? '' : String(Math.round(value)))
+	useEffect(() => {
+		setDraft(value === null ? '' : String(Math.round(value)))
+	}, [value])
+	const commit = () => {
+		const n = parseFloat(draft)
+		if (!isNaN(n) && n > 0) onSet(n)
+	}
+	return (
+		<>
+			<button
+				className="vobject-align-btn"
+				title="−12"
+				onClick={() => onStep(-SIZE_STEP)}
+			>
+				−
+			</button>
+			<input
+				className="insp-text insp-num insp-size"
+				value={draft}
+				placeholder="混在"
+				onChange={(e) => setDraft(e.currentTarget.value)}
+				onBlur={commit}
+				onKeyDown={(e) => {
+					if (e.key === 'Enter') {
+						commit()
+						e.currentTarget.blur()
+					} else if (e.key === 'Escape') {
+						setDraft(value === null ? '' : String(Math.round(value)))
+						e.currentTarget.blur()
+					}
+				}}
+			/>
+			<button
+				className="vobject-align-btn"
+				title="+12"
+				onClick={() => onStep(SIZE_STEP)}
+			>
+				＋
+			</button>
+		</>
+	)
+}
+
 function NumField({
 	value,
 	onCommit,
@@ -322,6 +466,9 @@ export function Inspector({
 	const calcs = sel.filter((n): n is CalcNodeType => n.type === 'calc')
 	const zones = sel.filter((n): n is ZoneNodeType => n.type === 'zone')
 	const voIds = vos.map((n) => n.id)
+	// 書式/表記は数値を持つピース（number・pair）のみに出す
+	const numVos = vos.filter((n) => n.data.kind !== 'text')
+	const numVoIds = numVos.map((n) => n.id)
 	const lnIds = lines.map((n) => n.id)
 	const caIds = calcs.map((n) => n.id)
 	const zoIds = zones.map((n) => n.id)
@@ -339,6 +486,42 @@ export function Inspector({
 	const wOf = (n: BoardNode) => n.measured?.width ?? n.width ?? 0
 	const hOf = (n: BoardNode) => n.measured?.height ?? n.height ?? 0
 	const allIds = sel.map((n) => n.id)
+	// 矩形罫線の塗りつぶし（rect のみ対象）
+	const rectLines = lines.filter((n) => n.data.rect)
+	const fillCur = common(rectLines, (n) => n.data.fill ?? '')
+	// サイズステッパー（全選択の共通値。混在時は null）
+	const wCom = sel.length > 0 ? common(sel, wOf) : null
+	const hCom = sel.length > 0 ? common(sel, hOf) : null
+	// 「フィット」: ピースをほぼ包含する矩形罫線がちょうど1つのとき、
+	// その矩形に位置・サイズを合わせる。複数矩形に跨る（＝包含なし）
+	// または2つ以上に包含される場合は対象外。
+	// 許容6px: 吸着なしの手動配置は数pxずれるので（グリッド半分）
+	const FILL_TOL = 6
+	const allRects = nodes.filter(
+		(n): n is LineNodeType => n.type === 'line' && !!n.data.rect
+	)
+	const containerOf = (n: BoardNode) => {
+		const hits = allRects.filter((r) =>
+			contains(
+				{
+					minX: r.position.x,
+					minY: r.position.y,
+					maxX: r.position.x + (r.width ?? 0),
+					maxY: r.position.y + (r.height ?? 0),
+				},
+				{
+					minX: n.position.x,
+					minY: n.position.y,
+					maxX: n.position.x + wOf(n),
+					maxY: n.position.y + hOf(n),
+				},
+				FILL_TOL
+			)
+		)
+		return hits.length === 1 ? hits[0] : null
+	}
+	const fillTargets = [...vos, ...calcs]
+	const fillable = fillTargets.filter((n) => containerOf(n) !== null)
 	const align =
 		sel.length >= 2
 			? {
@@ -431,6 +614,69 @@ export function Inspector({
 					</div>
 				</section>
 			)}
+			{sel.length > 0 && (
+				<section className="insp-sec">
+					<div className="insp-title">サイズ</div>
+					<Row label="幅">
+						<SizeCtl
+							value={wCom}
+							onStep={(d) =>
+								applyNode(allIds, (n) => ({
+									width: Math.max(minOf(n, 0), wOf(n) + d),
+								}))
+							}
+							onSet={(v) =>
+								applyNode(allIds, (n) => ({
+									width: Math.max(minOf(n, 0), v),
+								}))
+							}
+						/>
+					</Row>
+					<Row label="高さ">
+						<SizeCtl
+							value={hCom}
+							onStep={(d) =>
+								applyNode(allIds, (n) => ({
+									height: Math.max(minOf(n, 1), hOf(n) + d),
+								}))
+							}
+							onSet={(v) =>
+								applyNode(allIds, (n) => ({
+									height: Math.max(minOf(n, 1), v),
+								}))
+							}
+						/>
+					</Row>
+					{fillTargets.length > 0 && (
+						<Row label="矩形">
+							<button
+								className="vobject-align-btn"
+								disabled={fillable.length === 0}
+								title="内側の矩形罫線に位置・サイズを合わせる（複数矩形に跨る場合は不可。約6pxの誤差は吸収）"
+								onClick={() =>
+									applyNode(
+										fillable.map((n) => n.id),
+										(n) => {
+											const r = containerOf(n)
+											if (!r) return {}
+											return {
+												position: {
+													x: r.position.x,
+													y: r.position.y,
+												},
+												width: r.width,
+												height: r.height,
+											}
+										}
+									)
+								}
+							>
+								フィット
+							</button>
+						</Row>
+					)}
+				</section>
+			)}
 			{vos.length > 0 && (
 				<section className="insp-sec">
 					<div className="insp-title">
@@ -483,6 +729,7 @@ export function Inspector({
 							))}
 						</div>
 					</Row>
+					<TextColorRow nodes={vos} ids={voIds} applyData={applyData} />
 					<Row label="文字">
 						<Btns
 							options={SIZE_OPTS}
@@ -502,7 +749,9 @@ export function Inspector({
 							onPick={(v) => applyData(voIds, { align: v })}
 						/>
 					</Row>
-					<FmtRow nodes={vos} ids={voIds} applyData={applyData} />
+					{numVos.length > 0 && (
+						<FmtRow nodes={numVos} ids={numVoIds} applyData={applyData} />
+					)}
 				</section>
 			)}
 			{lines.length > 0 && (
@@ -529,6 +778,39 @@ export function Inspector({
 							}
 						/>
 					</Row>
+					{rectLines.length > 0 && (
+						<Row label="塗り">
+							<div className="vobject-colors">
+								<button
+									className={`vobject-swatch${fillCur === '' ? ' active' : ''}`}
+									style={{
+										backgroundColor: 'transparent',
+										border: '1px dashed #999',
+									}}
+									title="なし"
+									onClick={() =>
+										applyData(lnIds, { fill: undefined })
+									}
+								/>
+								{Object.entries(PIECE_COLORS)
+									.filter(([name]) => name !== 'none')
+									.map(([name, c]) => (
+										<button
+											key={name}
+											className={`vobject-swatch${fillCur === name ? ' active' : ''}`}
+											style={{
+												backgroundColor: c.fill,
+												borderColor: c.border,
+											}}
+											title={name}
+											onClick={() =>
+												applyData(lnIds, { fill: name })
+											}
+										/>
+									))}
+							</div>
+						</Row>
+					)}
 				</section>
 			)}
 			{calcs.length > 0 && (
@@ -596,6 +878,7 @@ export function Inspector({
 							onPick={(v) => applyData(caIds, { size: v })}
 						/>
 					</Row>
+					<TextColorRow nodes={calcs} ids={caIds} applyData={applyData} />
 					<Row label="表示">
 						<Toggle
 							label="枠なし"
@@ -637,6 +920,7 @@ export function Inspector({
 							onPick={(v) => applyData(zoIds, { size: v })}
 						/>
 					</Row>
+					<TextColorRow nodes={zones} ids={zoIds} applyData={applyData} />
 					<Row label="表示">
 						<Toggle
 							label="枠なし"

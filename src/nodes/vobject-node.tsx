@@ -14,6 +14,7 @@ import {
 } from '@xyflow/react'
 import { HintContext } from '../hint-context'
 import { formatNumber } from '../lib/aggregate'
+import { numCls } from '../lib/calc'
 import type { VObjectData, VObjectNodeType } from './types'
 
 export const PIECE_COLORS: Record<
@@ -31,11 +32,22 @@ export const PIECE_COLORS: Record<
 	none: { fill: 'transparent', border: 'transparent', text: '#1c1917' },
 }
 
+// 文字色パレット（'auto' は空=テーマ既定色を使う）
+export const TEXT_COLORS: Record<string, string> = {
+	auto: '',
+	black: '#1c1917',
+	gray: '#6b7280',
+	red: '#c92a2a',
+	blue: '#1864c8',
+	green: '#2b8a3e',
+}
+
 export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) {
 	const hinted = useContext(HintContext).ids.has(id)
 	const [editing, setEditing] = useState(false)
 	const { kind, label, value, color } = data
 	const theme = PIECE_COLORS[color] ?? PIECE_COLORS.yellow
+	const textColor = TEXT_COLORS[data.textColor ?? 'auto'] || theme.text
 	const showLabel = kind !== 'number'
 	const showValue = kind !== 'text'
 	const align = data.align ?? 'c'
@@ -47,7 +59,7 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 			style={{
 				backgroundColor: theme.fill,
 				borderColor: theme.border,
-				color: theme.text,
+				color: textColor,
 			}}
 			onDoubleClick={() => setEditing(true)}
 		>
@@ -65,13 +77,13 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 					{showValue &&
 						value !== null &&
 						!(data.hideZero && value === 0) && (
-							<div className="vobject-value">
-								{formatNumber(value, data.digits, data.comma)}
+							<div className={`vobject-value${numCls(data, value)}`}>
+								{formatNumber(value, data.digits, data.comma, data.neg)}
 							</div>
 						)}
 				</>
 			)}
-			<NodeResizer isVisible={selected} minWidth={36} minHeight={28} />
+			<NodeResizer isVisible={selected} minWidth={36} minHeight={24} />
 			<Handle type="source" id="out" position={Position.Right} />
 		</div>
 	)
