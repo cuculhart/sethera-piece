@@ -43,19 +43,45 @@ export function applyRound(mode: RoundMode, n: number): number {
 	}
 }
 
+/** ノードの矩形（position + 実測/指定サイズ） */
+export function nodeBounds(n: BoardNode): Bounds {
+	return {
+		minX: n.position.x,
+		minY: n.position.y,
+		maxX: n.position.x + (n.measured?.width ?? n.width ?? 0),
+		maxY: n.position.y + (n.measured?.height ?? n.height ?? 0),
+	}
+}
+
 /** ゾーン（または任意の矩形）に完全包含される値ピース（vobject / calc）を返す */
 export function zoneMembers(bounds: Bounds, nodes: BoardNode[]): BoardNode[] {
 	return nodes.filter((n) => {
 		if (n.type !== 'vobject' && n.type !== 'calc') return false
-		const nw = n.measured?.width ?? n.width ?? 0
-		const nh = n.measured?.height ?? n.height ?? 0
-		return contains(bounds, {
-			minX: n.position.x,
-			minY: n.position.y,
-			maxX: n.position.x + nw,
-			maxY: n.position.y + nh,
-		})
+		return contains(bounds, nodeBounds(n))
 	})
+}
+
+/** いずれかのゾーンに「一部だけ」重なっているピースのID集合。
+ *  交差面積が閾値超 かつ 完全包含でない vobject/calc（テキストも COUNT の母数なので対象） */
+export function zonePartialIds(nodes: BoardNode[]): Set<string> {
+	const zones = nodes.filter((n) => n.type === 'zone')
+	const out = new Set<string>()
+	if (!zones.length) return out
+	for (const n of nodes) {
+		if (n.type !== 'vobject' && n.type !== 'calc') continue
+		const b = nodeBounds(n)
+		for (const z of zones) {
+			const zb = nodeBounds(z)
+			if (contains(zb, b)) continue
+			const iw = Math.min(zb.maxX, b.maxX) - Math.max(zb.minX, b.minX)
+			const ih = Math.min(zb.maxY, b.maxY) - Math.max(zb.minY, b.minY)
+			if (iw > 0 && ih > 0 && iw * ih > 4) {
+				out.add(n.id)
+				break
+			}
+		}
+	}
+	return out
 }
 
 /** calc 入力ハンドル（'a' / 'b'）に接続しているエッジのソースノードID */

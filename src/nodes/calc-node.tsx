@@ -25,13 +25,15 @@ import type { BoardNode, CalcNodeType, CalcOp, RoundMode } from './types'
 
 export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 	const { updateNodeData } = useReactFlow()
-	const hinted = useContext(HintContext).ids.has(id)
+	const hint = useContext(HintContext)
+	const hinted = hint.ids.has(id)
+	const zpart = hint.partial.has(id)
 	const nodes = useNodes<BoardNode>()
 	const edges = useEdges()
 	const value = nodeValue(id, nodes, edges)
 	const aSrc = operandSource(edges, id, 'a')
 	const bSrc = operandSource(edges, id, 'b')
-	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}`
+	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}`
 	const style = data.textColor
 		? { color: TEXT_COLORS[data.textColor] }
 		: undefined

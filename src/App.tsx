@@ -23,6 +23,8 @@ import {
 	type Edge,
 	type EdgeChange,
 	type NodeChange,
+	type NodeDimensionChange,
+	type NodePositionChange,
 	type Viewport,
 } from '@xyflow/react'
 import { flushSync } from 'react-dom'
@@ -38,6 +40,7 @@ import { AggZoneNode } from './nodes/agg-zone-node'
 import { CalcNode } from './nodes/calc-node'
 import { LineNode } from './nodes/line-node'
 import { VObjectNode } from './nodes/vobject-node'
+import { zonePartialIds } from './lib/calc'
 import { Inspector } from './inspector'
 import { HintContext } from './hint-context'
 import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
@@ -46,15 +49,102 @@ type Snapshot = { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg }
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.3.0'
+const APP_VERSION = '0.4.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
+const TB_COLOR_KEY = 'sethera-toolbar-color'
+const QUIET_KEY = 'sethera-quiet'
 
 const nodeTypes = {
 	vobject: VObjectNode,
 	zone: AggZoneNode,
 	calc: CalcNode,
 	line: LineNode,
+}
+
+// 連動リサイズの対象型と最小サイズ（zone は対象外）
+const RESIZE_MIN: Record<string, { w: number; h: number }> = {
+	vobject: { w: 36, h: 24 },
+	calc: { w: 64, h: 32 },
+	line: { w: 12, h: 12 },
+}
+
+/** hex色（#rgb/#rrggbb）が暗めかどうか（輝度で判定） */
+function isDarkColor(hex: string): boolean {
+	const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim())
+	if (!m) return false
+	const h =
+		m[1].length === 3
+			? m[1].split('').map((c) => c + c).join('')
+			: m[1]
+	const r = parseInt(h.slice(0, 2), 16)
+	const g = parseInt(h.slice(2, 4), 16)
+	const b = parseInt(h.slice(4, 6), 16)
+	return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5
+}
+
+/** 複数選択中の連動リサイズ。ドラッグ主の「動いた辺」の移動量を、
+ *  他の選択中の対象ノードの同じ辺にも適用する変更を追加して返す。
+ *  左辺: x+=dx & w-=dx（右端固定）/ 右辺: w+=dw / 上辺・下辺も同様。
+ *  zone は RESIZE_MIN にないので巻き込まない */
+function withResizeFollowers(
+	changes: NodeChange<BoardNode>[],
+	nds: BoardNode[]
+): NodeChange<BoardNode>[] {
+	const dim = changes.find(
+		(c): c is NodeDimensionChange =>
+			c.type === 'dimensions' && c.resizing === true && !!c.dimensions
+	)
+	if (!dim) return changes
+	const src = nds.find((n) => n.id === dim.id)
+	if (!src?.selected || !RESIZE_MIN[src.type ?? '']) return changes
+	const sw = src.measured?.width ?? src.width ?? 0
+	const sh = src.measured?.height ?? src.height ?? 0
+	const dims = dim.dimensions!
+	const dw = dims.width - sw
+	const dh = dims.height - sh
+	if (dw === 0 && dh === 0) return changes
+	const pos = changes.find(
+		(c): c is NodePositionChange =>
+			c.type === 'position' && c.id === dim.id && !!c.position
+	)
+	const dx = pos ? (pos.position!.x - src.position.x) : 0
+	const dy = pos ? (pos.position!.y - src.position.y) : 0
+	const extra: NodeChange<BoardNode>[] = []
+	for (const n of nds) {
+		const min = RESIZE_MIN[n.type ?? '']
+		if (!n.selected || n.id === src.id || !min) continue
+		const w = n.measured?.width ?? n.width ?? 0
+		const h = n.measured?.height ?? n.height ?? 0
+		let x = n.position.x
+		let y = n.position.y
+		let nw = w
+		let nh = h
+		if (dx !== 0) {
+			x += dx
+			nw = w - dx
+		} else if (dw !== 0) nw = w + dw
+		if (dy !== 0) {
+			y += dy
+			nh = h - dy
+		} else if (dh !== 0) nh = h + dh
+		nw = Math.max(min.w, nw)
+		nh = Math.max(min.h, nh)
+		if (x !== n.position.x || y !== n.position.y)
+			extra.push({
+				id: n.id,
+				type: 'position',
+				position: { x, y },
+			})
+		if (nw !== w || nh !== h)
+			extra.push({
+				id: n.id,
+				type: 'dimensions',
+				dimensions: { width: nw, height: nh },
+				setAttributes: true,
+			})
+	}
+	return extra.length ? [...changes, ...extra] : changes
 }
 
 function loadDoc(): { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg } {
@@ -132,8 +222,28 @@ function Board() {
 	const [zoneDraw, setZoneDraw] = useState(false)
 	const zoneDrawStart = useRef<{ x: number; y: number } | null>(null)
 	const [tbCollapsed, setTbCollapsed] = useState(false)
-	const [modal, setModal] = useState<'about' | 'reset' | null>(null)
+	const [modal, setModal] = useState<'about' | 'reset' | 'settings' | null>(
+		null
+	)
+	const [tbColor, setTbColor] = useState(
+		() => localStorage.getItem(TB_COLOR_KEY) ?? ''
+	)
+	const [quiet, setQuiet] = useState(
+		() => localStorage.getItem(QUIET_KEY) === '1'
+	)
+	const applyQuiet = (on: boolean) => {
+		setQuiet(on)
+		if (on) localStorage.setItem(QUIET_KEY, '1')
+		else localStorage.removeItem(QUIET_KEY)
+	}
+	const applyTbColor = (c: string) => {
+		setTbColor(c)
+		if (c) localStorage.setItem(TB_COLOR_KEY, c)
+		else localStorage.removeItem(TB_COLOR_KEY)
+	}
 	const [hintedIds, setHintedIds] = useState<ReadonlySet<string>>(new Set())
+	// ゾーンに一部だけ重なっている（= 式に効いていない）ピースの警告表示
+	const partialIds = useMemo(() => zonePartialIds(nodes), [nodes])
 	const rf = useReactFlow<BoardNode>()
 	const wrapRef = useRef<HTMLDivElement>(null)
 	const fileRef = useRef<HTMLInputElement>(null)
@@ -233,7 +343,7 @@ function Board() {
 								: 'misc'
 			}
 			if (recKey) record(recKey, recKey.startsWith('r:') ? 600 : 0)
-			setNodes((nds) => applyNodeChanges(changes, nds))
+			setNodes((nds) => applyNodeChanges(withResizeFollowers(changes, nds), nds))
 		},
 		[record]
 	)
@@ -776,15 +886,19 @@ function Board() {
 	)
 
 	return (
-		<div className={printImg ? 'board hasimg' : 'board'} ref={wrapRef}>
+		<div
+			className={`board${printImg ? ' hasimg' : ''}${quiet ? ' quiet' : ''}`}
+			ref={wrapRef}
+		>
 			<HintContext.Provider
 				value={useMemo(
 					() => ({
 						ids: hintedIds,
+						partial: partialIds,
 						set: (ids: string[]) => setHintedIds(new Set(ids)),
 						clear: () => setHintedIds(new Set()),
 					}),
-					[hintedIds]
+					[hintedIds, partialIds]
 				)}
 			>
 				<ReactFlow
@@ -816,7 +930,12 @@ function Board() {
 					{...(savedViewport ? { defaultViewport: savedViewport } : { fitView: true })}
 				>
 					{gridOn && (
-						<Background variant={BackgroundVariant.Dots} gap={GRID} size={1.2} />
+						<Background
+							variant={BackgroundVariant.Dots}
+							gap={GRID}
+							size={1.2}
+							color={quiet ? '#cfc8ba' : undefined}
+						/>
 					)}
 					{paper.on && (
 						<PaperFrame
@@ -837,7 +956,10 @@ function Board() {
 						applyNode={applyNode}
 					/>
 				)}
-				<div className={tbCollapsed ? 'toolbar collapsed' : 'toolbar'}>
+				<div
+					className={`toolbar${tbCollapsed ? ' collapsed' : ''}${isDarkColor(tbColor) ? ' tb-dark' : ''}`}
+					style={tbColor ? { background: tbColor } : undefined}
+				>
 					<button
 						className="tbtoggle"
 						title={tbCollapsed ? 'ツールバーを展開' : 'ツールバーを折りたたむ'}
@@ -936,6 +1058,13 @@ function Board() {
 						↪ やり直し
 					</button>
 					<button
+						data-icon="⚙"
+						title="設定"
+						onClick={() => setModal('settings')}
+					>
+						設定
+					</button>
+					<button
 						data-icon="i"
 						title="このアプリについて"
 						onClick={() => setModal('about')}
@@ -1015,6 +1144,14 @@ function Board() {
 										</button>
 									</div>
 								</>
+							) : modal === 'settings' ? (
+								<SettingsPane
+									color={tbColor}
+									onChange={applyTbColor}
+									quiet={quiet}
+									onQuiet={applyQuiet}
+									onClose={() => setModal(null)}
+								/>
 							) : (
 								<>
 									<h2>すべて消去しますか？</h2>
@@ -1041,5 +1178,76 @@ function Board() {
 				)}
 			</HintContext.Provider>
 		</div>
+	)
+}
+
+/** 設定モーダル本体。将来の設定項目はここに行を足す */
+function SettingsPane({
+	color,
+	onChange,
+	quiet,
+	onQuiet,
+	onClose,
+}: {
+	color: string
+	onChange: (c: string) => void
+	quiet: boolean
+	onQuiet: (on: boolean) => void
+	onClose: () => void
+}) {
+	const [draft, setDraft] = useState(color)
+	const valid = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(draft)
+	const pickValue = valid
+		? draft.length === 4
+			? `#${draft[1]}${draft[1]}${draft[2]}${draft[2]}${draft[3]}${draft[3]}`
+			: draft
+		: '#ffffff'
+	return (
+		<>
+			<h2>設定</h2>
+			<div className="settings-row">
+				<label htmlFor="tbcolor">ツールバーの色</label>
+				<input
+					type="color"
+					value={pickValue}
+					onChange={(e) => {
+						setDraft(e.target.value)
+						onChange(e.target.value)
+					}}
+				/>
+				<input
+					id="tbcolor"
+					className={`settings-hex${draft && !valid ? ' invalid' : ''}`}
+					value={draft}
+					placeholder="#ffffff"
+					onChange={(e) => {
+						setDraft(e.target.value)
+						const v = e.target.value.trim()
+						if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) onChange(v)
+					}}
+				/>
+				<button
+					onClick={() => {
+						setDraft('')
+						onChange('')
+					}}
+				>
+					既定
+				</button>
+			</div>
+			<div className="settings-row">
+				<label>
+					<input
+						type="checkbox"
+						checked={quiet}
+						onChange={(e) => onQuiet(e.target.checked)}
+					/>{' '}
+					Quiet モード（UI の明度を抑える）
+				</label>
+			</div>
+			<div className="modal-actions">
+				<button onClick={onClose}>閉じる</button>
+			</div>
+		</>
 	)
 }

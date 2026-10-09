@@ -19,6 +19,7 @@ export type PaperCfg = {
 	size: PaperSize
 	landscape: boolean
 	placed?: boolean
+	ghost?: boolean
 }
 
 export const DEFAULT_PAPER: PaperCfg = {
@@ -48,7 +49,7 @@ export function PaperFrame({
 	return (
 		<ViewportPortal>
 			<div
-				className="paper"
+				className={`paper${cfg.ghost ? ' ghost' : ''}`}
 				style={{ left: cfg.x, top: cfg.y, width: w, height: h }}
 			>
 				<div
@@ -105,6 +106,14 @@ export function PaperFrame({
 						onClick={() => onChange({ ...cfg, landscape: !cfg.landscape })}
 					>
 						{cfg.landscape ? '横' : '縦'}
+					</button>
+					<button
+						className={cfg.ghost ? 'active' : ''}
+						title="用紙の塗りを消して点線枠だけにする（明るさ対策。印刷範囲は変わりません）"
+						onPointerDown={(e) => e.stopPropagation()}
+						onClick={() => onChange({ ...cfg, ghost: !cfg.ghost })}
+					>
+						枠
 					</button>
 				</div>
 			</div>

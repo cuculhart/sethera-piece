@@ -19,15 +19,15 @@ export function aggregate(fn: AggFn, values: number[]): number | null {
 }
 
 /** digits 省略=自動（小数3桁まで・末尾0なし）。comma=true で3桁区切り。
- *  neg: 'tri'→▲絶対値、'paren'→(絶対値)、'red'/'redminus'→符号つき
- *  （赤字は表示側で .num-neg クラスを付けて色付け） */
+ *  neg: 'tri'→▲絶対値、'paren'→(絶対値)、'red'→符号なし絶対値を赤字、
+ *  'redminus'→符号つきを赤字（赤字は表示側で .num-neg クラスを付けて色付け） */
 export function formatNumber(
 	n: number,
 	digits?: number,
 	comma?: boolean,
 	neg?: 'minus' | 'paren' | 'tri' | 'red' | 'redminus'
 ): string {
-	const styled = (neg === 'tri' || neg === 'paren') && n < 0
+	const styled = (neg === 'tri' || neg === 'paren' || neg === 'red') && n < 0
 	const v = styled ? Math.abs(n) : n
 	const s =
 		digits === undefined && comma !== true
@@ -40,7 +40,9 @@ export function formatNumber(
 					maximumFractionDigits: digits ?? 3,
 				})
 	if (!styled) return s
-	return neg === 'tri' ? `▲${s}` : `(${s})`
+	if (neg === 'tri') return `▲${s}`
+	if (neg === 'paren') return `(${s})`
+	return s
 }
 
 export interface Bounds {

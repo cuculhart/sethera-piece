@@ -54,6 +54,15 @@ body,
 	color: #666;
 }
 
+/* ツールバー背景が暗い設定のときタイトルを白系に */
+.toolbar.tb-dark .brand {
+	color: #f1f3f5;
+}
+
+.toolbar.tb-dark .brand em {
+	color: rgba(255, 255, 255, 0.6);
+}
+
 .toolbar button {
 	padding: 4px 10px;
 	border: 1px solid #c8c8c8;
@@ -259,6 +268,17 @@ textarea.insp-text {
 	box-shadow: none;
 	padding: 2px;
 	outline: 1px dashed rgba(0, 0, 0, 0.18);
+}
+
+/* ゾーンに一部だけ重なっている（集計に効いていない）ピースの警告 */
+.vobject.zpart,
+.calcnode.zpart {
+	outline: 2px solid #e03131;
+	outline-offset: 2px;
+	box-shadow:
+		0 0 0 5px rgba(224, 49, 49, 0.15),
+		inset 0 0 0 3px rgba(224, 49, 49, 0.12),
+		0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .vobject-label {
@@ -889,6 +909,13 @@ textarea.vobject-label-input {
 	box-sizing: border-box;
 }
 
+/* 透過点線枠モード: 白い用紙がまぶしい人向け。印刷範囲は同じ */
+.paper.ghost {
+	background: transparent;
+	border: 1.5px dashed #9aa7b4;
+	box-shadow: none;
+}
+
 .paper-tag {
 	position: absolute;
 	top: -30px;
@@ -922,6 +949,11 @@ textarea.vobject-label-input {
 	cursor: pointer;
 	padding: 1px 4px;
 	line-height: 1.4;
+}
+
+.paper-tag button.active {
+	background: #e3ecff;
+	border-color: #4466cc;
 }
 
 /* ---- 数値表示の装飾（太さ・負数赤）。各 700 定義より後に置いて上書きする ---- */
@@ -967,6 +999,12 @@ textarea.vobject-label-input {
 .capturing .vobject.plain,
 .capturing .calcnode.plain {
 	outline: none;
+}
+
+.capturing .vobject.zpart,
+.capturing .calcnode.zpart {
+	outline: none;
+	box-shadow: none;
 }
 
 /* 式表示中のselectはテキストのように見せる */
@@ -1123,6 +1161,42 @@ textarea.vobject-label-input {
 	color: #fff;
 }
 
+.settings-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 12px 0 4px;
+}
+
+.settings-row label {
+	font-size: 13px;
+	white-space: nowrap;
+}
+
+.settings-row input[type='color'] {
+	width: 36px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	background: none;
+	cursor: pointer;
+}
+
+.settings-hex {
+	width: 88px;
+	padding: 4px 6px;
+	font-family: ui-monospace, monospace;
+	font-size: 13px;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+}
+
+.settings-hex.invalid {
+	border-color: #e03131;
+	background: #fff5f5;
+}
+
 .modal-actions button.danger:hover {
 	background: #b22;
 }
@@ -1131,4 +1205,48 @@ textarea.vobject-label-input {
 	.modal-back {
 		display: none !important;
 	}
+}
+
+/* ---- Quiet モード: UI の明度を抑える（ピース・罫線など内容色は不変） ---- */
+
+.quiet .react-flow {
+	background: #f0ede7;
+}
+
+.quiet .toolbar,
+.quiet .inspector,
+.quiet .modal {
+	background: rgba(246, 243, 238, 0.96);
+	border-color: #d8d2c7;
+}
+
+.quiet .toolbar button,
+.quiet .inspector button,
+.quiet .inspector input,
+.quiet .inspector select,
+.quiet .modal button,
+.quiet .modal input,
+.quiet .modal select {
+	background: #edeae3;
+	border-color: #d8d2c7;
+}
+
+.quiet .toolbar button:hover:not(:disabled),
+.quiet .inspector button:hover,
+.quiet .modal button:hover {
+	background: #e4dfd4;
+}
+
+.quiet .toolbar button.active {
+	background: #ddd6c9;
+	border-color: #a89f8e;
+	color: #4a4437;
+}
+
+.quiet .insp-sec {
+	border-top-color: #e3ded4;
+}
+
+.quiet .settings-hex.invalid {
+	background: #f5eaea;
 }

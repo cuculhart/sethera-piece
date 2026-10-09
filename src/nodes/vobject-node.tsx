@@ -43,7 +43,9 @@ export const TEXT_COLORS: Record<string, string> = {
 }
 
 export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) {
-	const hinted = useContext(HintContext).ids.has(id)
+	const hint = useContext(HintContext)
+	const hinted = hint.ids.has(id)
+	const zpart = hint.partial.has(id)
 	const [editing, setEditing] = useState(false)
 	const { kind, label, value, color } = data
 	const theme = PIECE_COLORS[color] ?? PIECE_COLORS.yellow
@@ -55,7 +57,7 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 
 	return (
 		<div
-			className={`vobject align-${align} size-${size}${data.bold ? ' bold' : ''}${editing ? ' nodrag editing' : ''}${hinted ? ' hinted' : ''}${color === 'none' ? ' plain' : ''}`}
+			className={`vobject align-${align} size-${size}${data.bold ? ' bold' : ''}${editing ? ' nodrag editing' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${color === 'none' ? ' plain' : ''}`}
 			style={{
 				backgroundColor: theme.fill,
 				borderColor: theme.border,
