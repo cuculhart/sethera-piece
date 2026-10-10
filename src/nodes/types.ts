@@ -27,6 +27,8 @@ export type VObjectData = {
 	bold?: boolean
 	/** 文字色。省略=テーマ既定の text 色 */
 	textColor?: string
+	/** グループID（カスタムピース）。同じIDのノードは一括で動く */
+	groupId?: string
 } & NumFmt
 
 export type ZoneData = {
@@ -49,6 +51,8 @@ export type CalcData = {
 	plain?: boolean
 	size?: 's' | 'm' | 'l' | 'xl'
 	textColor?: string
+	/** グループID（カスタムピース）。同じIDのノードは一括で動く */
+	groupId?: string
 } & NumFmt
 
 export type LineWeight = 'thin' | 'bold' | 'xbold' | 'dash'
@@ -58,6 +62,8 @@ export type LineData = {
 	rect?: boolean
 	/** 矩形の塗りつぶし色（PIECE_COLORS のキー名）。省略=塗りなし */
 	fill?: string
+	/** グループID（カスタムピース）。同じIDのノードは一括で動く */
+	groupId?: string
 }
 
 export type VObjectNodeType = Node<VObjectData, 'vobject'>

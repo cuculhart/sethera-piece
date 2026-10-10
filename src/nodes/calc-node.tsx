@@ -28,12 +28,13 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 	const hint = useContext(HintContext)
 	const hinted = hint.ids.has(id)
 	const zpart = hint.partial.has(id)
+	const gmem = hint.group.has(id)
 	const nodes = useNodes<BoardNode>()
 	const edges = useEdges()
 	const value = nodeValue(id, nodes, edges)
 	const aSrc = operandSource(edges, id, 'a')
 	const bSrc = operandSource(edges, id, 'b')
-	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}`
+	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${gmem ? ' gmember' : ''}`
 	const style = data.textColor
 		? { color: TEXT_COLORS[data.textColor] }
 		: undefined

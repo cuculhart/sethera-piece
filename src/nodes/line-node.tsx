@@ -1,5 +1,7 @@
+import { useContext } from 'react'
 import { NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react'
 import { PIECE_COLORS } from './vobject-node'
+import { HintContext } from '../hint-context'
 import type { LineNodeType, LineWeight } from './types'
 
 const GRID = 12
@@ -18,6 +20,7 @@ const WEIGHTS: [LineWeight, string][] = [
 
 export function LineNode({ id, data, selected, width, height }: NodeProps<LineNodeType>) {
 	const { updateNode } = useReactFlow()
+	const gmem = useContext(HintContext).group.has(id)
 	const w = width ?? 0
 	const h = height ?? 0
 	const horiz = w >= h
@@ -28,7 +31,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 	const off = s.width / 2
 
 	return (
-		<div className="linenode">
+		<div className={`linenode${gmem ? ' gmember' : ''}`}>
 			<svg className="linenode-svg" width={w} height={h}>
 				{data.rect ? (
 					// 矩形はボックス境界上にストローク中心を置く（外側半分は

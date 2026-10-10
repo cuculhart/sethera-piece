@@ -522,6 +522,20 @@ export function Inspector({
 	}
 	const fillTargets = [...vos, ...calcs]
 	const fillable = fillTargets.filter((n) => containerOf(n) !== null)
+	// グループ（カスタムピース）。対象は vobject/calc/line（zone 不可）。
+	// 選択に既存メンバーが混ざる場合はそのグループ全体を対象に取り込む
+	const GROUPABLE = new Set(['vobject', 'calc', 'line'])
+	const gid = (n: BoardNode) => (n.data as { groupId?: string }).groupId
+	const selGids = new Set(
+		sel.map(gid).filter((g): g is string => !!g)
+	)
+	const groupTargets = nodes.filter(
+		(n) =>
+			GROUPABLE.has(n.type ?? '') &&
+			(n.selected || (!!gid(n) && selGids.has(gid(n)!)))
+	)
+	const canGroup = groupTargets.length >= 2
+	const canUngroup = selGids.size > 0
 	const align =
 		sel.length >= 2
 			? {
@@ -612,6 +626,39 @@ export function Inspector({
 							</button>
 						</div>
 					</div>
+				</section>
+			)}
+			{(canGroup || canUngroup) && (
+				<section className="insp-sec">
+					<div className="insp-title">グループ</div>
+					<Row label={`対象 ${groupTargets.length}`}>
+						<button
+							className="vobject-align-btn"
+							disabled={!canGroup}
+							title="選択をまとめて1つのカスタムピースに（どのメンバーを動かしても連動。Alt+ドラッグで個別移動）"
+							onClick={() =>
+								applyData(
+									groupTargets.map((n) => n.id),
+									{ groupId: crypto.randomUUID() }
+								)
+							}
+						>
+							まとめる
+						</button>
+						<button
+							className="vobject-align-btn"
+							disabled={!canUngroup}
+							title="グループを解除"
+							onClick={() =>
+								applyData(
+									groupTargets.map((n) => n.id),
+									{ groupId: undefined }
+								)
+							}
+						>
+							解除
+						</button>
+					</Row>
 				</section>
 			)}
 			{sel.length > 0 && (

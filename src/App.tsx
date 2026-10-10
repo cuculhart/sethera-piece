@@ -47,9 +47,11 @@ import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
 
 type Snapshot = { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg }
 
+const gidOf = (n: BoardNode) => (n.data as { groupId?: string }).groupId
+
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.4.0'
+const APP_VERSION = '0.5.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 const TB_COLOR_KEY = 'sethera-toolbar-color'
@@ -143,6 +145,44 @@ function withResizeFollowers(
 				dimensions: { width: nw, height: nh },
 				setAttributes: true,
 			})
+	}
+	return extra.length ? [...changes, ...extra] : changes
+}
+
+/** グループ連動移動。ドラッグ中ノードに groupId があれば、同じ groupId の
+ *  他メンバーへ同量の position 変更を追加して返す（未選択メンバーも動く）。
+ *  既にこのバッチで動くメンバー（複数選択ドラッグ）は除外 */
+function withDragFollowers(
+	changes: NodeChange<BoardNode>[],
+	nds: BoardNode[]
+): NodeChange<BoardNode>[] {
+	const deltas = new Map<string, { dx: number; dy: number }>()
+	for (const c of changes) {
+		if (c.type !== 'position' || !c.dragging || !c.position) continue
+		const n = nds.find((x) => x.id === c.id)
+		const g = n && gidOf(n)
+		if (!n || !g || deltas.has(g)) continue
+		deltas.set(g, {
+			dx: c.position.x - n.position.x,
+			dy: c.position.y - n.position.y,
+		})
+	}
+	if (!deltas.size) return changes
+	const moving = new Set(
+		changes.filter((c) => c.type === 'position').map((c) => c.id)
+	)
+	const extra: NodeChange<BoardNode>[] = []
+	for (const n of nds) {
+		const g = gidOf(n)
+		if (!g || moving.has(n.id)) continue
+		const d = deltas.get(g)
+		if (!d) continue
+		extra.push({
+			id: n.id,
+			type: 'position',
+			position: { x: n.position.x + d.dx, y: n.position.y + d.dy },
+			dragging: true,
+		})
 	}
 	return extra.length ? [...changes, ...extra] : changes
 }
@@ -244,6 +284,19 @@ function Board() {
 	const [hintedIds, setHintedIds] = useState<ReadonlySet<string>>(new Set())
 	// ゾーンに一部だけ重なっている（= 式に効いていない）ピースの警告表示
 	const partialIds = useMemo(() => zonePartialIds(nodes), [nodes])
+	// 選択メンバーと同じ groupId を持つ全ノード（グループの可視化用）
+	const groupSelIds = useMemo(() => {
+		const gids = new Set(
+			nodes.filter((n) => n.selected).map(gidOf).filter((g): g is string => !!g)
+		)
+		const out = new Set<string>()
+		if (!gids.size) return out
+		for (const n of nodes) {
+			const g = gidOf(n)
+			if (g && gids.has(g)) out.add(n.id)
+		}
+		return out
+	}, [nodes])
 	const rf = useReactFlow<BoardNode>()
 	const wrapRef = useRef<HTMLDivElement>(null)
 	const fileRef = useRef<HTMLInputElement>(null)
@@ -262,6 +315,27 @@ function Board() {
 	const lastRec = useRef({ t: 0, key: '' })
 	const dragRec = useRef(false)
 	const resizeRec = useRef(false)
+	// Alt 押下中はグループ連動を抑制（メンバーの個別移動用）
+	const altDown = useRef(false)
+	useEffect(() => {
+		const dn = (e: KeyboardEvent) => {
+			if (e.key === 'Alt') altDown.current = true
+		}
+		const up = (e: KeyboardEvent) => {
+			if (e.key === 'Alt') altDown.current = false
+		}
+		const off = () => {
+			altDown.current = false
+		}
+		window.addEventListener('keydown', dn)
+		window.addEventListener('keyup', up)
+		window.addEventListener('blur', off)
+		return () => {
+			window.removeEventListener('keydown', dn)
+			window.removeEventListener('keyup', up)
+			window.removeEventListener('blur', off)
+		}
+	}, [])
 
 	// 変更適用前に現状態を積む。150ms以内の連続記録は同一ジェスチャとして統合、
 	// key+win指定で連続操作（自由ドラッグ等）をさらに長い窓で統合
@@ -343,7 +417,15 @@ function Board() {
 								: 'misc'
 			}
 			if (recKey) record(recKey, recKey.startsWith('r:') ? 600 : 0)
-			setNodes((nds) => applyNodeChanges(withResizeFollowers(changes, nds), nds))
+			setNodes((nds) =>
+				applyNodeChanges(
+					withResizeFollowers(
+						altDown.current ? changes : withDragFollowers(changes, nds),
+						nds
+					),
+					nds
+				)
+			)
 		},
 		[record]
 	)
@@ -479,6 +561,17 @@ function Board() {
 				.getEdges()
 				.filter((e) => ids.has(e.source) && ids.has(e.target))
 		}
+		// 選択ノードがグループに属していれば、そのグループ全員に拡張する
+		const expandGroups = (sel: BoardNode[]) => {
+			const gids = new Set(
+				sel.map(gidOf).filter((g): g is string => !!g)
+			)
+			if (!gids.size) return sel
+			return rf.getNodes().filter((n) => {
+				const g = gidOf(n)
+				return n.selected || (!!g && gids.has(g))
+			})
+		}
 		const duplicate = (
 			srcNodes: BoardNode[],
 			srcEdges: Edge[],
@@ -487,14 +580,25 @@ function Board() {
 			if (srcNodes.length === 0) return
 			record('app')
 			const idMap = new Map(srcNodes.map((n) => [n.id, crypto.randomUUID()]))
+			// グループは複製ごとに新ID（オリジナルとは非連携）
+			const gMap = new Map<string, string>()
+			const remapData = (n: BoardNode): BoardNode['data'] => {
+				const g = gidOf(n)
+				if (!g) return n.data
+				if (!gMap.has(g)) gMap.set(g, crypto.randomUUID())
+				return { ...n.data, groupId: gMap.get(g) } as BoardNode['data']
+			}
 			setNodes((nds) => [
 				...(select ? nds.map((n) => ({ ...n, selected: false })) : nds),
-				...srcNodes.map((n) => ({
-					...serializeNode(n),
-					id: idMap.get(n.id)!,
-					position: { x: n.position.x + 32, y: n.position.y + 32 },
-					selected: select,
-				})),
+				...srcNodes.map(
+					(n): BoardNode => ({
+						...serializeNode(n),
+						id: idMap.get(n.id)!,
+						position: { x: n.position.x + 32, y: n.position.y + 32 },
+						data: remapData(n),
+						selected: select,
+					} as BoardNode)
+				),
 			])
 			setEdges((es) => [
 				...es,
@@ -534,11 +638,11 @@ function Board() {
 				e.preventDefault()
 				redo()
 			} else if (key === 'c') {
-				const sel = rf.getNodes().filter((n) => n.selected)
+				const sel = expandGroups(rf.getNodes().filter((n) => n.selected))
 				clipboard.current = { nodes: sel, edges: innerEdges(sel) }
 			} else if (key === 'd') {
 				e.preventDefault()
-				const sel = rf.getNodes().filter((n) => n.selected)
+				const sel = expandGroups(rf.getNodes().filter((n) => n.selected))
 				duplicate(sel, innerEdges(sel), false)
 			} else if (key === 'v') {
 				duplicate(clipboard.current.nodes, clipboard.current.edges, true)
@@ -895,10 +999,11 @@ function Board() {
 					() => ({
 						ids: hintedIds,
 						partial: partialIds,
+						group: groupSelIds,
 						set: (ids: string[]) => setHintedIds(new Set(ids)),
 						clear: () => setHintedIds(new Set()),
 					}),
-					[hintedIds, partialIds]
+					[hintedIds, partialIds, groupSelIds]
 				)}
 			>
 				<ReactFlow
