@@ -27,7 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       # Pages 固有のステップは PR では不要＆権限エラー回避のためスキップ
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
