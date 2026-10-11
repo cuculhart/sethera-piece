@@ -985,7 +985,11 @@ function Board() {
 		setTemplates(ts)
 		saveTemplates(ts)
 	}
-	const selCount = nodes.filter((n) => n.selected).length
+	// テンプレート保存対象はグループ展開後の個数。
+	// 2以上なら「保存が目的」、0/1なら「参照・メンテが目的」とみなす
+	const tplSaveCount = expandGroups(
+		nodes.filter((n) => n.selected)
+	).length
 
 	// 選択（グループ含む）を相対座標に正規化して登録
 	const saveAsTemplate = (name: string): boolean => {
@@ -1480,7 +1484,7 @@ function Board() {
 							) : modal === 'templates' ? (
 								<TemplatesPane
 									templates={templates}
-									selCount={selCount}
+									saveCount={tplSaveCount}
 									onSave={saveAsTemplate}
 									onInsert={insertTemplate}
 									onRename={renameTemplate}
@@ -1593,7 +1597,7 @@ function SettingsPane({
  *  保存・一覧・挿入・改名・削除・JSON 書出/読込 */
 function TemplatesPane({
 	templates,
-	selCount,
+	saveCount,
 	onSave,
 	onInsert,
 	onRename,
@@ -1603,7 +1607,8 @@ function TemplatesPane({
 	onClose,
 }: {
 	templates: Template[]
-	selCount: number
+	// グループ展開後の保存対象数。2以上=保存モード、0/1=ライブラリモード
+	saveCount: number
 	onSave: (name: string) => boolean
 	onInsert: (t: Template) => void
 	onRename: (id: string, name: string) => void
@@ -1615,6 +1620,7 @@ function TemplatesPane({
 	const [name, setName] = useState('')
 	const [editingId, setEditingId] = useState<string | null>(null)
 	const [editName, setEditName] = useState('')
+	const canSave = saveCount >= 2
 	const doSave = () => {
 		if (onSave(name)) setName('')
 	}
@@ -1627,28 +1633,24 @@ function TemplatesPane({
 		<>
 			<h2>テンプレート</h2>
 			<p className="modal-sub">
-				選択中のピースを雛形として保存・呼び出し。
-				文書とは別に保管されます
+				{canSave
+					? `選択中の ${saveCount} ピースを雛形として保存します`
+					: '雛形の呼び出し・管理（文書とは別に保管）。保存するには複数ピースを選んでから開いてください'}
 			</p>
-			<div className="tpl-save">
-				<input
-					className="insp-text"
-					value={name}
-					placeholder={
-						selCount > 0
-							? '新規テンプレート名'
-							: '保存するには先にピースを選択してください'
-					}
-					disabled={selCount === 0}
-					onChange={(e) => setName(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === 'Enter') doSave()
-					}}
-				/>
-				<button disabled={selCount === 0} onClick={doSave}>
-					選択{selCount > 0 ? `×${selCount}` : ''}を保存
-				</button>
-			</div>
+			{canSave && (
+				<div className="tpl-save">
+					<input
+						className="insp-text"
+						value={name}
+						placeholder="新規テンプレート名"
+						onChange={(e) => setName(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter') doSave()
+						}}
+					/>
+					<button onClick={doSave}>選択×{saveCount} を保存</button>
+				</div>
+			)}
 			{templates.length === 0 ? (
 				<p className="insp-hint">
 					まだテンプレートがありません。グループ化した明細行や罫線セットを登録すると、他の文書でも呼び出せます
@@ -1657,7 +1659,9 @@ function TemplatesPane({
 				<ul className="tpl-list">
 					{templates.map((t) => (
 						<li key={t.id} className="tpl-row">
-							{editingId === t.id ? (
+							{canSave ? (
+								<span className="tpl-name">{t.name}</span>
+							) : editingId === t.id ? (
 								<input
 									className="insp-text tpl-name-input"
 									value={editName}
@@ -1688,33 +1692,45 @@ function TemplatesPane({
 								{t.nodes.length} ピース
 								{t.createdAt ? `・${t.createdAt}` : ''}
 							</span>
-							<button onClick={() => onInsert(t)}>挿入</button>
-							<button
-								onClick={() => onExport(t)}
-								title="JSON ファイルに書き出し"
-							>
-								書出
-							</button>
-							<button
-								className="danger"
-								onClick={() => onDelete(t.id)}
-							>
-								削除
-							</button>
+							{!canSave && (
+								<>
+									<button onClick={() => onInsert(t)}>
+										挿入
+									</button>
+									<button
+										onClick={() => onExport(t)}
+										title="JSON ファイルに書き出し"
+									>
+										書出
+									</button>
+									<button
+										className="danger"
+										onClick={() => onDelete(t.id)}
+									>
+										削除
+									</button>
+								</>
+							)}
 						</li>
 					))}
 				</ul>
 			)}
 			<div className="modal-actions">
-				<label className="tpl-import">
-					JSON から読み込み
-					<input
-						type="file"
-						accept=".json,application/json"
-						style={{ display: 'none' }}
-						onChange={onImport}
-					/>
-				</label>
+				{canSave ? (
+					<span className="insp-hint">
+						挿入・改名・書出・削除は選択を解除してから開いてください
+					</span>
+				) : (
+					<label className="tpl-import">
+						JSON から読み込み
+						<input
+							type="file"
+							accept=".json,application/json"
+							style={{ display: 'none' }}
+							onChange={onImport}
+						/>
+					</label>
+				)}
 				<button onClick={onClose}>閉じる</button>
 			</div>
 		</>
