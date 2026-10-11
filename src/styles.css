@@ -210,6 +210,11 @@ textarea.insp-text {
 	color: #4466cc;
 }
 
+.insp-hint {
+	font-size: 10px;
+	color: #8a8a8a;
+}
+
 .inspector .vobject-align-btn {
 	font-size: 11px;
 }
@@ -277,6 +282,16 @@ textarea.insp-text {
 	outline: 1.5px dashed #5577cc;
 	outline-offset: 4px;
 	border-radius: 4px;
+}
+
+/* ロック: 移動・リサイズ・削除・編集が抑止されている状態の目印 */
+.vobject.locked,
+.calcnode.locked,
+.linenode.locked {
+	outline: 1.5px dashed #b08800;
+	outline-offset: 3px;
+	border-radius: 4px;
+	cursor: default;
 }
 
 /* ゾーンに一部だけ重なっている（集計に効いていない）ピースの警告 */
@@ -1016,7 +1031,8 @@ textarea.vobject-label-input {
 	box-shadow: none;
 }
 
-.capturing .gmember {
+.capturing .gmember,
+.capturing .locked {
 	outline: none;
 }
 
@@ -1169,9 +1185,9 @@ textarea.vobject-label-input {
 }
 
 .modal-actions button.danger {
-	background: #d33;
-	border-color: #b22;
-	color: #fff;
+	background: var(--btn-danger-bg, #d33);
+	border-color: var(--btn-danger-bd, #b22);
+	color: var(--btn-danger-fg, #fff);
 }
 
 .settings-row {
@@ -1210,8 +1226,121 @@ textarea.vobject-label-input {
 	background: #fff5f5;
 }
 
+/* テンプレートライブラリ */
+.tpl-save {
+	display: flex;
+	gap: 8px;
+	margin: 12px 0 10px;
+}
+
+.tpl-save .insp-text {
+	flex: 1;
+}
+
+.tpl-save button {
+	padding: 5px 12px;
+	border: 1px solid #c8c8c8;
+	border-radius: 6px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 13px;
+	white-space: nowrap;
+}
+
+.tpl-save button:hover:not(:disabled) {
+	background: #f0f0f0;
+}
+
+.tpl-save button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.tpl-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	max-height: 320px;
+	overflow-y: auto;
+	border: 1px solid #e0e0e0;
+	border-radius: 6px;
+}
+
+.tpl-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-bottom: 1px solid #eee;
+	font-size: 13px;
+}
+
+.tpl-row:last-child {
+	border-bottom: none;
+}
+
+.tpl-name {
+	flex: 1;
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tpl-name:hover {
+	color: #4466cc;
+}
+
+.tpl-name-input {
+	flex: 1;
+}
+
+.tpl-count {
+	font-size: 11px;
+	color: #8a8a8a;
+	white-space: nowrap;
+}
+
+.tpl-row button {
+	padding: 3px 10px;
+	border: 1px solid #c8c8c8;
+	border-radius: 5px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.tpl-row button:hover {
+	background: #f0f0f0;
+}
+
+.tpl-row button.danger {
+	background: var(--btn-danger-bg, #d33);
+	border-color: var(--btn-danger-bd, #b22);
+	color: var(--btn-danger-fg, #fff);
+}
+
+.tpl-row button.danger:hover {
+	background: var(--btn-danger-bd, #b22);
+}
+
+.tpl-import {
+	padding: 5px 14px;
+	border: 1px solid #c8c8c8;
+	border-radius: 6px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 13px;
+	margin-right: auto;
+}
+
+.tpl-import:hover {
+	background: #f0f0f0;
+}
+
 .modal-actions button.danger:hover {
-	background: #b22;
+	background: var(--btn-danger-bd, #b22);
 }
 
 @media print {
@@ -1237,7 +1366,7 @@ textarea.vobject-label-input {
 .quiet .inspector button,
 .quiet .inspector input,
 .quiet .inspector select,
-.quiet .modal button,
+.quiet .modal button:not(.danger),
 .quiet .modal input,
 .quiet .modal select {
 	background: #edeae3;
@@ -1246,11 +1375,12 @@ textarea.vobject-label-input {
 
 .quiet .toolbar button:hover:not(:disabled),
 .quiet .inspector button:hover,
-.quiet .modal button:hover {
+.quiet .modal button:hover:not(.danger) {
 	background: #e4dfd4;
 }
 
-.quiet .toolbar button.active {
+.quiet .toolbar button.active,
+.quiet .inspector button.active {
 	background: #ddd6c9;
 	border-color: #a89f8e;
 	color: #4a4437;

@@ -58,13 +58,13 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 
 	return (
 		<div
-			className={`vobject align-${align} size-${size}${data.bold ? ' bold' : ''}${editing ? ' nodrag editing' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${gmem ? ' gmember' : ''}${color === 'none' ? ' plain' : ''}`}
+			className={`vobject align-${align} size-${size}${data.bold ? ' bold' : ''}${editing ? ' nodrag editing' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${gmem ? ' gmember' : ''}${color === 'none' ? ' plain' : ''}${data.locked ? ' locked' : ''}`}
 			style={{
 				backgroundColor: theme.fill,
 				borderColor: theme.border,
 				color: textColor,
 			}}
-			onDoubleClick={() => setEditing(true)}
+			onDoubleClick={() => !data.locked && setEditing(true)}
 		>
 			{editing ? (
 				<VObjectEditor
@@ -86,7 +86,11 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 						)}
 				</>
 			)}
-			<NodeResizer isVisible={selected} minWidth={36} minHeight={24} />
+			<NodeResizer
+				isVisible={selected && !data.locked}
+				minWidth={36}
+				minHeight={24}
+			/>
 			<Handle type="source" id="out" position={Position.Right} />
 		</div>
 	)

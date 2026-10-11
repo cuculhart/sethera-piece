@@ -29,6 +29,8 @@ export type VObjectData = {
 	textColor?: string
 	/** グループID（カスタムピース）。同じIDのノードは一括で動く */
 	groupId?: string
+	/** ロック。ドラッグ・リサイズ・削除・属性編集を抑止 */
+	locked?: boolean
 } & NumFmt
 
 export type ZoneData = {
@@ -53,17 +55,33 @@ export type CalcData = {
 	textColor?: string
 	/** グループID（カスタムピース）。同じIDのノードは一括で動く */
 	groupId?: string
+	/** ロック。ドラッグ・リサイズ・削除・属性編集を抑止 */
+	locked?: boolean
 } & NumFmt
 
-export type LineWeight = 'thin' | 'bold' | 'xbold' | 'dash'
+export type LineWeight =
+	| 'thin'
+	| 'bold'
+	| 'xbold'
+	| 'dash'
+	| 'dot'
+	| 'chain'
+	| 'double'
+/** 線の端点装飾。none=なし、arrow=矢印、dot=丸 */
+export type LineCap = 'none' | 'arrow' | 'dot'
 export type LineData = {
 	w: LineWeight
 	front?: boolean
 	rect?: boolean
 	/** 矩形の塗りつぶし色（PIECE_COLORS のキー名）。省略=塗りなし */
 	fill?: string
+	/** 始端・終端の端点装飾（通常線のみ。省略=なし） */
+	capStart?: LineCap
+	capEnd?: LineCap
 	/** グループID（カスタムピース）。同じIDのノードは一括で動く */
 	groupId?: string
+	/** ロック。ドラッグ・リサイズ・削除・属性編集を抑止 */
+	locked?: boolean
 }
 
 export type VObjectNodeType = Node<VObjectData, 'vobject'>

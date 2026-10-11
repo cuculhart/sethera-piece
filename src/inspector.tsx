@@ -54,8 +54,16 @@ const WEIGHT_OPTS: readonly (readonly [LineWeight, string])[] = [
 	['thin', '細'],
 	['bold', '太'],
 	['xbold', '極太'],
-	['dash', '点線'],
+	['dash', '破線'],
+	['dot', '点線'],
+	['chain', '一鎖'],
+	['double', '二重'],
 ]
+const CAP_OPTS = [
+	['none', 'なし'],
+	['arrow', '→'],
+	['dot', '●'],
+] as const
 const AGG_LABEL: Record<AggFn, string> = {
 	sum: 'SUM',
 	avg: 'AVG',
@@ -488,6 +496,8 @@ export function Inspector({
 	const allIds = sel.map((n) => n.id)
 	// 矩形罫線の塗りつぶし（rect のみ対象）
 	const rectLines = lines.filter((n) => n.data.rect)
+	// 端点装飾（通常線のみ。rect 不可）
+	const plainLines = lines.filter((n) => !n.data.rect)
 	const fillCur = common(rectLines, (n) => n.data.fill ?? '')
 	// サイズステッパー（全選択の共通値。混在時は null）
 	const wCom = sel.length > 0 ? common(sel, wOf) : null
@@ -536,6 +546,14 @@ export function Inspector({
 	)
 	const canGroup = groupTargets.length >= 2
 	const canUngroup = selGids.size > 0
+	// ロック（対象はグループ可と同じ。zone は対象外）
+	const lockables = sel.filter((n) => GROUPABLE.has(n.type ?? ''))
+	const lockIds = lockables.map((n) => n.id)
+	const allLocked =
+		lockables.length > 0 &&
+		lockables.every(
+			(n) => !!(n.data as { locked?: boolean }).locked
+		)
 	const align =
 		sel.length >= 2
 			? {
@@ -658,6 +676,23 @@ export function Inspector({
 						>
 							解除
 						</button>
+					</Row>
+				</section>
+			)}
+			{lockables.length > 0 && (
+				<section className="insp-sec">
+					<div className="insp-title">ロック</div>
+					<Row label={`対象 ${lockables.length}`}>
+						<Toggle
+							label={allLocked ? '解除' : 'ロック'}
+							on={allLocked}
+							onFlip={(v) =>
+								applyData(lockIds, { locked: v ? true : undefined })
+							}
+						/>
+						<span className="insp-hint">
+							移動・リサイズ・削除・編集を抑止
+						</span>
 					</Row>
 				</section>
 			)}
@@ -825,6 +860,46 @@ export function Inspector({
 							}
 						/>
 					</Row>
+					{plainLines.length > 0 && (
+						<>
+							<Row label="始端">
+								<Btns
+									options={CAP_OPTS}
+									current={common(
+										plainLines,
+										(n) => n.data.capStart ?? 'none'
+									)}
+									onPick={(v) =>
+										applyData(
+											plainLines.map((n) => n.id),
+											{
+												capStart:
+													v === 'none' ? undefined : v,
+											}
+										)
+									}
+								/>
+							</Row>
+							<Row label="終端">
+								<Btns
+									options={CAP_OPTS}
+									current={common(
+										plainLines,
+										(n) => n.data.capEnd ?? 'none'
+									)}
+									onPick={(v) =>
+										applyData(
+											plainLines.map((n) => n.id),
+											{
+												capEnd:
+													v === 'none' ? undefined : v,
+											}
+										)
+									}
+								/>
+							</Row>
+						</>
+					)}
 					{rectLines.length > 0 && (
 						<Row label="塗り">
 							<div className="vobject-colors">

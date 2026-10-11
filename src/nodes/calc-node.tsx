@@ -34,12 +34,12 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 	const value = nodeValue(id, nodes, edges)
 	const aSrc = operandSource(edges, id, 'a')
 	const bSrc = operandSource(edges, id, 'b')
-	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${gmem ? ' gmember' : ''}`
+	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${gmem ? ' gmember' : ''}${data.locked ? ' locked' : ''}`
 	const style = data.textColor
 		? { color: TEXT_COLORS[data.textColor] }
 		: undefined
 
-	const tools = selected ? (
+	const tools = selected && !data.locked ? (
 		<div className="calc-tools nodrag">
 			{(
 				[
@@ -100,7 +100,11 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 				>
 					ƒx
 				</button>
-				<NodeResizer isVisible={selected} minWidth={64} minHeight={32} />
+				<NodeResizer
+				isVisible={selected && !data.locked}
+				minWidth={64}
+				minHeight={32}
+			/>
 				{tools}
 			</div>
 		)

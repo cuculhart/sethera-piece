@@ -5,6 +5,7 @@ import {
 	useRef,
 	useState,
 	type ChangeEvent,
+	type MouseEvent,
 } from 'react'
 import {
 	addEdge,
@@ -41,6 +42,7 @@ import { CalcNode } from './nodes/calc-node'
 import { LineNode } from './nodes/line-node'
 import { VObjectNode } from './nodes/vobject-node'
 import { zonePartialIds } from './lib/calc'
+import { loadTemplates, saveTemplates, type Template } from './lib/templates'
 import { Inspector } from './inspector'
 import { HintContext } from './hint-context'
 import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
@@ -48,10 +50,18 @@ import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
 type Snapshot = { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg }
 
 const gidOf = (n: BoardNode) => (n.data as { groupId?: string }).groupId
+const lockedOf = (n: BoardNode) =>
+	!!(n.data as { locked?: boolean }).locked
+// 集計ゾーンは常に selectable:false（ボックス選択から除外するため）。
+// 古い文書やテンプレ経由で来たゾーンにも適用する正規化
+const fixZoneSelectable = (n: BoardNode): BoardNode =>
+	n.type === 'zone' && n.selectable !== false
+		? ({ ...n, selectable: false } as BoardNode)
+		: n
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.5.0'
+const APP_VERSION = '0.6.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 const TB_COLOR_KEY = 'sethera-toolbar-color'
@@ -193,7 +203,9 @@ function loadDoc(): { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg } {
 		if (!raw) return { nodes: [], edges: [], paper: DEFAULT_PAPER }
 		const parsed = JSON.parse(raw)
 		return {
-			nodes: Array.isArray(parsed?.nodes) ? parsed.nodes : [],
+			nodes: Array.isArray(parsed?.nodes)
+				? parsed.nodes.map(fixZoneSelectable)
+				: [],
 			edges: Array.isArray(parsed?.edges) ? parsed.edges : [],
 			paper:
 				parsed?.paper && typeof parsed.paper === 'object'
@@ -262,9 +274,9 @@ function Board() {
 	const [zoneDraw, setZoneDraw] = useState(false)
 	const zoneDrawStart = useRef<{ x: number; y: number } | null>(null)
 	const [tbCollapsed, setTbCollapsed] = useState(false)
-	const [modal, setModal] = useState<'about' | 'reset' | 'settings' | null>(
-		null
-	)
+	const [modal, setModal] = useState<
+		'about' | 'reset' | 'settings' | 'templates' | null
+	>(null)
 	const [tbColor, setTbColor] = useState(
 		() => localStorage.getItem(TB_COLOR_KEY) ?? ''
 	)
@@ -381,9 +393,15 @@ function Board() {
 
 	const onNodesChange = useCallback(
 		(changes: NodeChange<BoardNode>[]) => {
+			const locked = new Set(
+				snapRef.current!.nodes.filter(lockedOf).map((n) => n.id)
+			)
 			let recKey = ''
 			for (const c of changes) {
 				if (c.type === 'select') continue
+				// ロックノードへの記録対象操作は無効化されるので履歴にも積まない
+				if ('id' in c && locked.has(c.id) && c.type !== 'dimensions')
+					continue
 				if (c.type === 'position' && c.dragging) {
 					if (!dragRec.current) {
 						record('drag')
@@ -422,7 +440,20 @@ function Board() {
 					withResizeFollowers(
 						altDown.current ? changes : withDragFollowers(changes, nds),
 						nds
-					),
+					).filter((c) => {
+						// ロック: ドラッグ・リサイズ・削除・ノード内UIからの更新を抑止
+						// （寸法の受動通知は通す。追従で追加された変更にも適用）
+						if (
+							'id' in c &&
+							locked.has(c.id) &&
+							(c.type === 'position' ||
+								c.type === 'remove' ||
+								c.type === 'replace' ||
+								(c.type === 'dimensions' && c.resizing === true))
+						)
+							return false
+						return true
+					}),
 					nds
 				)
 			)
@@ -553,64 +584,71 @@ function Board() {
 		}
 	}
 
+	// 選択ノードがグループに属していれば、そのグループ全員に拡張する
+	// （rf.getNodes() は常に最新を返すのでコンポーネント外側で使い回せる）
+	const expandGroups = (sel: BoardNode[]) => {
+		const gids = new Set(
+			sel.map(gidOf).filter((g): g is string => !!g)
+		)
+		if (!gids.size) return sel
+		return rf.getNodes().filter((n) => {
+			const g = gidOf(n)
+			return n.selected || (!!g && gids.has(g))
+		})
+	}
+	const innerEdges = (sel: BoardNode[]) => {
+		const ids = new Set(sel.map((n) => n.id))
+		return rf
+			.getEdges()
+			.filter((e) => ids.has(e.source) && ids.has(e.target))
+	}
+	const duplicate = (
+		srcNodes: BoardNode[],
+		srcEdges: Edge[],
+		select: boolean,
+		off: { x: number; y: number } = { x: 32, y: 32 }
+	) => {
+		if (srcNodes.length === 0) return
+		record('app')
+		const idMap = new Map(srcNodes.map((n) => [n.id, crypto.randomUUID()]))
+		// グループは複製ごとに新ID（オリジナルとは非連携）
+		const gMap = new Map<string, string>()
+		const remapData = (n: BoardNode): BoardNode['data'] => {
+			const g = gidOf(n)
+			if (!g) return n.data
+			if (!gMap.has(g)) gMap.set(g, crypto.randomUUID())
+			return { ...n.data, groupId: gMap.get(g) } as BoardNode['data']
+		}
+		setNodes((nds) => [
+			...(select ? nds.map((n) => ({ ...n, selected: false })) : nds),
+			...srcNodes.map(
+				(n): BoardNode => ({
+					...serializeNode(n),
+					...(n.type === 'zone' ? { selectable: false } : {}),
+					id: idMap.get(n.id)!,
+					position: {
+						x: n.position.x + off.x,
+						y: n.position.y + off.y,
+					},
+					data: remapData(n),
+					selected: select,
+				} as BoardNode)
+			),
+		])
+		setEdges((es) => [
+			...es,
+			...srcEdges.map((e) => ({
+				...serializeEdge(e),
+				id: crypto.randomUUID(),
+				source: idMap.get(e.source)!,
+				target: idMap.get(e.target)!,
+				selected: false,
+			})),
+		])
+	}
+
 	// Ctrl+C / Ctrl+V / Ctrl+D（選択ノード間のエッジも一緒に複製）
 	useEffect(() => {
-		const innerEdges = (sel: BoardNode[]) => {
-			const ids = new Set(sel.map((n) => n.id))
-			return rf
-				.getEdges()
-				.filter((e) => ids.has(e.source) && ids.has(e.target))
-		}
-		// 選択ノードがグループに属していれば、そのグループ全員に拡張する
-		const expandGroups = (sel: BoardNode[]) => {
-			const gids = new Set(
-				sel.map(gidOf).filter((g): g is string => !!g)
-			)
-			if (!gids.size) return sel
-			return rf.getNodes().filter((n) => {
-				const g = gidOf(n)
-				return n.selected || (!!g && gids.has(g))
-			})
-		}
-		const duplicate = (
-			srcNodes: BoardNode[],
-			srcEdges: Edge[],
-			select: boolean
-		) => {
-			if (srcNodes.length === 0) return
-			record('app')
-			const idMap = new Map(srcNodes.map((n) => [n.id, crypto.randomUUID()]))
-			// グループは複製ごとに新ID（オリジナルとは非連携）
-			const gMap = new Map<string, string>()
-			const remapData = (n: BoardNode): BoardNode['data'] => {
-				const g = gidOf(n)
-				if (!g) return n.data
-				if (!gMap.has(g)) gMap.set(g, crypto.randomUUID())
-				return { ...n.data, groupId: gMap.get(g) } as BoardNode['data']
-			}
-			setNodes((nds) => [
-				...(select ? nds.map((n) => ({ ...n, selected: false })) : nds),
-				...srcNodes.map(
-					(n): BoardNode => ({
-						...serializeNode(n),
-						id: idMap.get(n.id)!,
-						position: { x: n.position.x + 32, y: n.position.y + 32 },
-						data: remapData(n),
-						selected: select,
-					} as BoardNode)
-				),
-			])
-			setEdges((es) => [
-				...es,
-				...srcEdges.map((e) => ({
-					...serializeEdge(e),
-					id: crypto.randomUUID(),
-					source: idMap.get(e.source)!,
-					target: idMap.get(e.target)!,
-					selected: false,
-				})),
-			])
-		}
 		const onKey = (e: KeyboardEvent) => {
 			// Ctrl+P はツールのキャプチャ印刷へ
 			if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
@@ -626,6 +664,40 @@ function Board() {
 					el.tagName === 'TEXTAREA' ||
 					el.isContentEditable)
 			) {
+				return
+			}
+			// 矢印キー微移動: 矢印=グリッド1歩、Shift+矢印=1px
+			// （グループは全体移動、ロック品は除外）
+			if (
+				!e.ctrlKey &&
+				!e.metaKey &&
+				!e.altKey &&
+				e.key.startsWith('Arrow') &&
+				!document.querySelector('.modal-back')
+			) {
+				const sel = rf.getNodes().filter((n) => n.selected)
+				if (sel.length === 0) return
+				e.preventDefault()
+				const step = e.shiftKey ? 1 : GRID
+				const dx =
+					e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+				const dy =
+					e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+				const gids = new Set(
+					sel.map(gidOf).filter((g): g is string => !!g)
+				)
+				record('kbd:' + sel.map((n) => n.id).join(','), 800)
+				setNodes((nds) =>
+					nds.map((n) => {
+						const g = gidOf(n)
+						if (!(n.selected || (!!g && gids.has(g))) || lockedOf(n))
+							return n
+						return {
+							...n,
+							position: { x: n.position.x + dx, y: n.position.y + dy },
+						}
+					})
+				)
 				return
 			}
 			if (!(e.ctrlKey || e.metaKey)) return
@@ -767,6 +839,7 @@ function Board() {
 					height: maxY - minY + 80,
 					zIndex: 0,
 					dragHandle: '.aggzone-header',
+					selectable: false,
 					data: { fn: 'sum', labelPos: 'bottom' },
 				},
 			])
@@ -813,12 +886,34 @@ function Board() {
 					height: h,
 					zIndex: 0,
 					dragHandle: '.aggzone-header',
+					// ボックス選択から除外（getNodesInside の
+					// excludeNonSelectableNodes が効く）。
+					// クリック選択は onNodeClick で手動復元
+					selectable: false,
 					selected: true,
 					data: { fn: 'sum', labelPos: 'bottom' },
 				},
 			])
 		},
 		[zoneDraw, rf, record]
+	)
+
+	// ゾーンは selectable:false（ボックス選択から除外）のため、
+	// クリック選択は手動で行う。Shift+クリックで選択の追加/解除
+	const onNodeClick = useCallback(
+		(e: MouseEvent, n: BoardNode) => {
+			if (n.type !== 'zone') return
+			const add = e.shiftKey
+			setNodes((nds) =>
+				nds.map((x) => {
+					if (x.id === n.id)
+						return { ...x, selected: add ? !x.selected : true }
+					if (!add && x.selected) return { ...x, selected: false }
+					return x
+				})
+			)
+		},
+		[]
 	)
 
 	// ゾーン描画モードをEscで解除
@@ -871,7 +966,7 @@ function Board() {
 				const parsed = JSON.parse(t)
 				if (!Array.isArray(parsed?.nodes)) throw new Error('bad doc')
 				record('app')
-				setNodes(parsed.nodes)
+				setNodes(parsed.nodes.map(fixZoneSelectable))
 				setEdges(Array.isArray(parsed.edges) ? parsed.edges : [])
 				if (parsed.paper && typeof parsed.paper === 'object') {
 					setPaper({ ...DEFAULT_PAPER, ...parsed.paper })
@@ -881,6 +976,115 @@ function Board() {
 				}
 			})
 			.catch(() => alert('Sethera の JSON ファイルとして読み込めませんでした'))
+	}
+
+	// ─── テンプレートライブラリ ─────────────────────────────
+	// 文書とは別の localStorage キーに保存（文書を開き直しても残る）
+	const [templates, setTemplates] = useState<Template[]>(loadTemplates)
+	const persistTemplates = (ts: Template[]) => {
+		setTemplates(ts)
+		saveTemplates(ts)
+	}
+	const selCount = nodes.filter((n) => n.selected).length
+
+	// 選択（グループ含む）を相対座標に正規化して登録
+	const saveAsTemplate = (name: string): boolean => {
+		const sel = expandGroups(nodes.filter((n) => n.selected))
+		if (sel.length === 0) return false
+		const minX = Math.min(...sel.map((n) => n.position.x))
+		const minY = Math.min(...sel.map((n) => n.position.y))
+		persistTemplates([
+			...templates,
+			{
+				id: crypto.randomUUID(),
+				name: name.trim() || '無題',
+				createdAt: new Date().toISOString().slice(0, 10),
+				nodes: sel.map(
+					(n) =>
+						({
+							...serializeNode(n),
+							position: {
+								x: n.position.x - minX,
+								y: n.position.y - minY,
+							},
+							selected: false,
+						}) as BoardNode
+				),
+				edges: innerEdges(sel).map(serializeEdge),
+			},
+		])
+		return true
+	}
+
+	// 正規化座標の外接中央がビューポート中央に来る位置へ複製
+	// （duplicate の idMap/gMap リマップで毎回独立した実体になる）
+	const insertTemplate = (t: Template) => {
+		const minX = Math.min(...t.nodes.map((n) => n.position.x))
+		const minY = Math.min(...t.nodes.map((n) => n.position.y))
+		const maxX = Math.max(
+			...t.nodes.map((n) => n.position.x + (n.width ?? 0))
+		)
+		const maxY = Math.max(
+			...t.nodes.map((n) => n.position.y + (n.height ?? 0))
+		)
+		const c = viewportCenter()
+		duplicate(t.nodes, t.edges, true, {
+			x: c.x - (minX + maxX) / 2,
+			y: c.y - (minY + maxY) / 2,
+		})
+		setModal(null)
+	}
+
+	const renameTemplate = (id: string, name: string) => {
+		persistTemplates(
+			templates.map((t) => (t.id === id ? { ...t, name } : t))
+		)
+	}
+	const deleteTemplate = (id: string) => {
+		persistTemplates(templates.filter((t) => t.id !== id))
+	}
+	const exportTemplate = (t: Template) => {
+		const doc = {
+			app: 'sethera-template',
+			version: 1,
+			name: t.name,
+			nodes: t.nodes,
+			edges: t.edges,
+		}
+		const blob = new Blob([JSON.stringify(doc, null, 2)], {
+			type: 'application/json',
+		})
+		const url = URL.createObjectURL(blob)
+		const a = document.createElement('a')
+		a.href = url
+		a.download = `sethera-tpl-${t.name || 'template'}.json`
+		a.click()
+		URL.revokeObjectURL(url)
+	}
+	const importTemplate = (e: ChangeEvent<HTMLInputElement>) => {
+		const f = e.currentTarget.files?.[0]
+		e.currentTarget.value = ''
+		if (!f) return
+		f.text()
+			.then((txt) => {
+				const parsed = JSON.parse(txt)
+				if (!Array.isArray(parsed?.nodes)) throw new Error('bad tpl')
+				persistTemplates([
+					...templates,
+					{
+						id: crypto.randomUUID(),
+						name:
+							typeof parsed.name === 'string' && parsed.name
+								? parsed.name
+								: '読み込みテンプレート',
+						nodes: parsed.nodes,
+						edges: Array.isArray(parsed.edges) ? parsed.edges : [],
+					},
+				])
+			})
+			.catch(() =>
+				alert('テンプレートの JSON として読み込めませんでした')
+			)
 	}
 
 	// 用紙トグル（初回ON時にビューポート中央へ配置）
@@ -953,9 +1157,12 @@ function Board() {
 		(ids: string[], patch: Record<string, unknown>) => {
 			record('attr', 500)
 			const set = new Set(ids)
+			// ロック中のノードは属性を変更しない
+			// （locked キー自体の変更=ロック/解除操作は許可）
+			const allowLock = 'locked' in patch
 			setNodes((nds) =>
 				nds.map((n) =>
-					set.has(n.id)
+					set.has(n.id) && (allowLock || !lockedOf(n))
 						? ({ ...n, data: { ...n.data, ...patch } } as BoardNode)
 						: n
 				)
@@ -976,8 +1183,10 @@ function Board() {
 			const set = new Set(ids)
 			setNodes((nds) =>
 				nds.map((n) => {
+					// ロック中は変更しない（locked キーを含む変更=解除操作は許可）
 					if (!set.has(n.id)) return n
 					const p = mk(n)
+					if (lockedOf(n) && !(p.data && 'locked' in p.data)) return n
 					return {
 						...n,
 						...p,
@@ -1029,6 +1238,10 @@ function Board() {
 					}
 					onSelectionStart={onSelectionStart}
 					onSelectionEnd={onSelectionEnd}
+					onNodeClick={onNodeClick}
+					// RF 組み込みの矢印キー移動（a11y）は無効化。
+					// F4 の矢印微移動（12px/Shift=1px）と二重に動くのを防ぐ
+					disableKeyboardA11y
 					onPaneClick={() => {
 						if (zoneDraw) setZoneDraw(false)
 					}}
@@ -1147,6 +1360,13 @@ function Board() {
 						開く
 					</button>
 					<button
+						data-icon="鋳"
+						title="テンプレートライブラリ（選択を雛形として保存・呼び出し）"
+						onClick={() => setModal('templates')}
+					>
+						テンプレ
+					</button>
+					<button
 						data-icon="↩"
 						disabled={histLen.past === 0}
 						title="元に戻す (Ctrl+Z)"
@@ -1257,6 +1477,18 @@ function Board() {
 									onQuiet={applyQuiet}
 									onClose={() => setModal(null)}
 								/>
+							) : modal === 'templates' ? (
+								<TemplatesPane
+									templates={templates}
+									selCount={selCount}
+									onSave={saveAsTemplate}
+									onInsert={insertTemplate}
+									onRename={renameTemplate}
+									onDelete={deleteTemplate}
+									onExport={exportTemplate}
+									onImport={importTemplate}
+									onClose={() => setModal(null)}
+								/>
 							) : (
 								<>
 									<h2>すべて消去しますか？</h2>
@@ -1351,6 +1583,138 @@ function SettingsPane({
 				</label>
 			</div>
 			<div className="modal-actions">
+				<button onClick={onClose}>閉じる</button>
+			</div>
+		</>
+	)
+}
+
+/** テンプレートライブラリのモーダル本体。
+ *  保存・一覧・挿入・改名・削除・JSON 書出/読込 */
+function TemplatesPane({
+	templates,
+	selCount,
+	onSave,
+	onInsert,
+	onRename,
+	onDelete,
+	onExport,
+	onImport,
+	onClose,
+}: {
+	templates: Template[]
+	selCount: number
+	onSave: (name: string) => boolean
+	onInsert: (t: Template) => void
+	onRename: (id: string, name: string) => void
+	onDelete: (id: string) => void
+	onExport: (t: Template) => void
+	onImport: (e: ChangeEvent<HTMLInputElement>) => void
+	onClose: () => void
+}) {
+	const [name, setName] = useState('')
+	const [editingId, setEditingId] = useState<string | null>(null)
+	const [editName, setEditName] = useState('')
+	const doSave = () => {
+		if (onSave(name)) setName('')
+	}
+	const commitRename = (t: Template) => {
+		const v = editName.trim()
+		if (v && v !== t.name) onRename(t.id, v)
+		setEditingId(null)
+	}
+	return (
+		<>
+			<h2>テンプレート</h2>
+			<p className="modal-sub">
+				選択中のピースを雛形として保存・呼び出し。
+				文書とは別に保管されます
+			</p>
+			<div className="tpl-save">
+				<input
+					className="insp-text"
+					value={name}
+					placeholder={
+						selCount > 0
+							? '新規テンプレート名'
+							: '保存するには先にピースを選択してください'
+					}
+					disabled={selCount === 0}
+					onChange={(e) => setName(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter') doSave()
+					}}
+				/>
+				<button disabled={selCount === 0} onClick={doSave}>
+					選択{selCount > 0 ? `×${selCount}` : ''}を保存
+				</button>
+			</div>
+			{templates.length === 0 ? (
+				<p className="insp-hint">
+					まだテンプレートがありません。グループ化した明細行や罫線セットを登録すると、他の文書でも呼び出せます
+				</p>
+			) : (
+				<ul className="tpl-list">
+					{templates.map((t) => (
+						<li key={t.id} className="tpl-row">
+							{editingId === t.id ? (
+								<input
+									className="insp-text tpl-name-input"
+									value={editName}
+									autoFocus
+									onChange={(e) =>
+										setEditName(e.target.value)
+									}
+									onBlur={() => commitRename(t)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') commitRename(t)
+										else if (e.key === 'Escape')
+											setEditingId(null)
+									}}
+								/>
+							) : (
+								<span
+									className="tpl-name"
+									title="クリックで改名"
+									onClick={() => {
+										setEditingId(t.id)
+										setEditName(t.name)
+									}}
+								>
+									{t.name}
+								</span>
+							)}
+							<span className="tpl-count">
+								{t.nodes.length} ピース
+								{t.createdAt ? `・${t.createdAt}` : ''}
+							</span>
+							<button onClick={() => onInsert(t)}>挿入</button>
+							<button
+								onClick={() => onExport(t)}
+								title="JSON ファイルに書き出し"
+							>
+								書出
+							</button>
+							<button
+								className="danger"
+								onClick={() => onDelete(t.id)}
+							>
+								削除
+							</button>
+						</li>
+					))}
+				</ul>
+			)}
+			<div className="modal-actions">
+				<label className="tpl-import">
+					JSON から読み込み
+					<input
+						type="file"
+						accept=".json,application/json"
+						style={{ display: 'none' }}
+						onChange={onImport}
+					/>
+				</label>
 				<button onClick={onClose}>閉じる</button>
 			</div>
 		</>
