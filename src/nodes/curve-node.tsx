@@ -1,6 +1,7 @@
 import { useContext, useMemo, useRef } from 'react'
 import { NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react'
 import { HintContext } from '../hint-context'
+import { LINE_COLORS } from './vobject-node'
 import type { CurveNodeType, LineCap, LineWeight } from './types'
 
 const GRID = 12
@@ -125,6 +126,8 @@ export function CurveNode({
 	// リサイズ中は開始時の pts を基準にライブスケール（箱と絵がずれないよう）
 	const resizeBase = useRef<{ pts: Pt[]; w: number; h: number } | null>(null)
 	const s = STROKES[(data.w as Exclude<LineWeight, 'double'>) ?? 'thin'] ?? STROKES.thin
+	// 線色（省略・未定義キーは既定色）
+	const sc = LINE_COLORS[data.color ?? 'default'] ?? STROKE_COLOR
 	const ah = 5 + s.width * 2
 	const dr = 1.8 + s.width * 0.8
 	const snapOn = useContext(HintContext).snapOn
@@ -167,7 +170,7 @@ export function CurveNode({
 		const ux = (tip.x - near.x) / (Math.hypot(tip.x - near.x, tip.y - near.y) || 1)
 		const uy = (tip.y - near.y) / (Math.hypot(tip.x - near.x, tip.y - near.y) || 1)
 		if (cap === 'dot')
-			return <circle key={end} cx={tip.x} cy={tip.y} r={dr} fill={STROKE_COLOR} />
+			return <circle key={end} cx={tip.x} cy={tip.y} r={dr} fill={sc} />
 		const bx = tip.x - ux * ah
 		const by = tip.y - uy * ah
 		const px = -uy * ah * 0.45
@@ -176,7 +179,7 @@ export function CurveNode({
 			<polygon
 				key={end}
 				points={`${tip.x},${tip.y} ${bx + px},${by + py} ${bx - px},${by - py}`}
-				fill={STROKE_COLOR}
+				fill={sc}
 			/>
 		)
 	}
@@ -225,7 +228,7 @@ export function CurveNode({
 					<path
 						d={d}
 						fill="none"
-						stroke={STROKE_COLOR}
+						stroke={sc}
 						strokeWidth={s.width}
 						strokeDasharray={s.dash}
 						strokeLinecap={s.cap ?? 'round'}

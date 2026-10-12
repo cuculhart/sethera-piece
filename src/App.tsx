@@ -43,7 +43,16 @@ import { LineNode, STROKES as LINE_STROKES } from './nodes/line-node'
 import { CurveNode, normalizeCurvePts } from './nodes/curve-node'
 import { VObjectNode } from './nodes/vobject-node'
 import { zonePartialIds } from './lib/calc'
+import {
+	CSV_LIMITS,
+	gridCsv,
+	parseNumCell,
+	toDelimited,
+	type ColType,
+	type ParsedTable,
+} from './lib/csv'
 import { loadTemplates, saveTemplates, type Template } from './lib/templates'
+import { CsvPane } from './csv-pane'
 import { Inspector } from './inspector'
 import { HintContext } from './hint-context'
 import type {
@@ -67,7 +76,7 @@ const fixZoneSelectable = (n: BoardNode): BoardNode =>
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.8.0'
+const APP_VERSION = '0.9.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 const TB_COLOR_KEY = 'sethera-toolbar-color'
@@ -624,7 +633,7 @@ function Board() {
 	const zoneDrawStart = useRef<{ x: number; y: number } | null>(null)
 	const [tbCollapsed, setTbCollapsed] = useState(false)
 	const [modal, setModal] = useState<
-		'about' | 'reset' | 'settings' | 'templates' | null
+		'about' | 'reset' | 'settings' | 'templates' | 'csv' | null
 	>(null)
 	const [tbColor, setTbColor] = useState(
 		() => localStorage.getItem(TB_COLOR_KEY) ?? ''
@@ -1537,6 +1546,91 @@ function Board() {
 		URL.revokeObjectURL(url)
 	}
 
+	// ─── CSV/TSV 取込・書出（Excel との往復） ───
+	// 取込: 行×列のピース群をビューポート中央に生成（数値列は数値ピース
+	//  → ゾーン集計が即効く）。生成物は全選択状態で返す
+	const importCsv = (rows: ParsedTable, colTypes: ColType[]) => {
+		record('app')
+		const c = viewportCenter()
+		const g = (v: number) => Math.round(v / GRID) * GRID
+		const ROW_H = 36 // vobject 既定高（3グリッド）
+		const colW = (t: ColType) => (t === 'number' ? 132 : 240)
+		const totalW = colTypes.reduce(
+			(a, t) => a + (t === 'ignore' ? 0 : colW(t)),
+			0
+		)
+		const x0 = g(c.x - totalW / 2)
+		const y0 = g(c.y - (rows.length * ROW_H) / 2)
+		const newNodes: BoardNode[] = []
+		rows.forEach((r, ri) => {
+			let x = x0
+			colTypes.forEach((t, ci) => {
+				if (t === 'ignore') return
+				const w = colW(t)
+				const cx = x
+				x += w
+				const cell = (r[ci] ?? '').slice(0, CSV_LIMITS.cellChars)
+				if (cell.trim() === '') return
+				const num = t === 'number' ? parseNumCell(cell) : null
+				newNodes.push({
+					id: crypto.randomUUID(),
+					type: 'vobject',
+					position: { x: cx, y: y0 + ri * ROW_H },
+					width: w,
+					height: ROW_H,
+					zIndex: 1,
+					selected: true,
+					data:
+						num !== null
+							? {
+									kind: 'number',
+									label: '',
+									value: num,
+									color: 'yellow',
+									align: 'r',
+								}
+							: {
+									kind: 'text',
+									label: cell,
+									value: null,
+									color: 'yellow',
+									align: 'l',
+								},
+				} as VObjectNodeType)
+			})
+		})
+		setNodes((nds) => [
+			...nds.map((n) => (n.selected ? { ...n, selected: false } : n)),
+			...newNodes,
+		])
+	}
+	// 書出: 盤面配置から行列を再構成（計算は結果値、罫線・ゾーンは除外）
+	const csvTargets = (scope: 'sel' | 'all') =>
+		scope === 'sel' ? expandGroups(nodes.filter((n) => n.selected)) : nodes
+	const copyCsvTsv = (scope: 'sel' | 'all') => {
+		const table = gridCsv(nodes, edges, csvTargets(scope))
+		void navigator.clipboard.writeText(toDelimited(table, '\t'))
+		return table.length
+	}
+	const saveCsvFile = (scope: 'sel' | 'all') => {
+		const table = gridCsv(nodes, edges, csvTargets(scope))
+		// UTF-8 BOM 付き（日本の Excel が既定で正しく開ける形式）
+		const blob = new Blob(['\uFEFF' + toDelimited(table, ',')], {
+			type: 'text/csv;charset=utf-8',
+		})
+		const url = URL.createObjectURL(blob)
+		const a = document.createElement('a')
+		a.href = url
+		a.download = `sethera-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}.csv`
+		a.click()
+		URL.revokeObjectURL(url)
+		return table.length
+	}
+	const csvScopeCount = (scope: 'sel' | 'all') =>
+		csvTargets(scope).filter(
+			(n) => n.type === 'vobject' || n.type === 'calc'
+		).length
+
 	const importDoc = (e: ChangeEvent<HTMLInputElement>) => {
 		const f = e.currentTarget.files?.[0]
 		e.currentTarget.value = ''
@@ -2115,6 +2209,13 @@ function Board() {
 						開く
 					</button>
 					<button
+						data-icon="表"
+						onClick={() => setModal('csv')}
+						title="CSV/TSV の取込・書出（Excel のコピー貼り付け・ファイル読込・計算結果の引き渡し）"
+					>
+						CSV
+					</button>
+					<button
 						data-icon="鋳"
 						title="テンプレートライブラリ（選択を雛形として保存・呼び出し）"
 						onClick={() => setModal('templates')}
@@ -2187,7 +2288,7 @@ function Board() {
 						onPointerDown={() => setModal(null)}
 					>
 						<div
-							className="modal"
+							className={`modal${modal === 'csv' ? ' csv' : ''}`}
 							onPointerDown={(e) => e.stopPropagation()}
 						>
 							{modal === 'about' ? (
@@ -2243,6 +2344,15 @@ function Board() {
 									onDelete={deleteTemplate}
 									onExport={exportTemplate}
 									onImport={importTemplate}
+									onClose={() => setModal(null)}
+								/>
+							) : modal === 'csv' ? (
+								<CsvPane
+									selCount={csvScopeCount('sel')}
+									totalCount={csvScopeCount('all')}
+									onImport={importCsv}
+									onCopyTsv={copyCsvTsv}
+									onSaveCsv={saveCsvFile}
 									onClose={() => setModal(null)}
 								/>
 							) : (

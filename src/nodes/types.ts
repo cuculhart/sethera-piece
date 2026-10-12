@@ -89,6 +89,8 @@ export type LineData = {
 	/** 始端・終端の端点装飾（通常線のみ。省略=なし） */
 	capStart?: LineCap
 	capEnd?: LineCap
+	/** 線色（LINE_COLORS のキー名）。省略=既定の #333 */
+	color?: string
 	/** グループID（カスタムピース）。同じIDのノードは一括で動く */
 	groupId?: string
 	/** ロック。ドラッグ・リサイズ・削除・属性編集を抑止 */
@@ -106,6 +108,8 @@ export type CurveData = {
 	w?: Exclude<LineWeight, 'double'>
 	capStart?: LineCap
 	capEnd?: LineCap
+	/** 線色（LINE_COLORS のキー名）。省略=既定の #333 */
+	color?: string
 	front?: boolean
 	groupId?: string
 	locked?: boolean

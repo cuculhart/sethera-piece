@@ -42,6 +42,17 @@ export const TEXT_COLORS: Record<string, string> = {
 	green: '#2b8a3e',
 }
 
+// 線・図形・曲線の線色パレット（'default' = 従来の #333）
+export const LINE_COLORS: Record<string, string> = {
+	default: '#333',
+	black: '#1c1917',
+	gray: '#adb5bd',
+	red: '#c92a2a',
+	blue: '#1864c8',
+	green: '#2b8a3e',
+	brown: '#a0653f',
+}
+
 export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) {
 	const hint = useContext(HintContext)
 	const hinted = hint.ids.has(id)

@@ -14,7 +14,7 @@ import {
 } from './lib/calc'
 import type { Edge } from '@xyflow/react'
 import { LABEL_POS_CYCLE, LABEL_POS_LABEL } from './nodes/agg-zone-node'
-import { PIECE_COLORS, TEXT_COLORS } from './nodes/vobject-node'
+import { LINE_COLORS, PIECE_COLORS, TEXT_COLORS } from './nodes/vobject-node'
 import type {
 	AggLabelPos,
 	BoardNode,
@@ -565,6 +565,8 @@ export function Inspector({
 		(n) => !n.data.rect && !n.data.ellipse && !n.data.arc
 	)
 	const fillCur = common(boxLines, (n) => n.data.fill ?? '')
+	// 線色（罫線・曲線共通。省略=default）
+	const lineColorCur = common(lines, (n) => n.data.color ?? 'default')
 	// 図形の形状（四角/楕円/円弧）。同一ボックスデータなので相互変換できる
 	const boxIds = boxLines.map((n) => n.id)
 	const boxShape = common(boxLines, (n) =>
@@ -939,6 +941,26 @@ export function Inspector({
 							onPick={(v) => applyData(lnIds, { w: v })}
 						/>
 					</Row>
+					<Row label="線色">
+						<div className="vobject-colors">
+							{Object.entries(LINE_COLORS).map(([name, hex]) => (
+								<button
+									key={name}
+									className={`vobject-swatch${lineColorCur === name ? ' active' : ''}`}
+									style={{ backgroundColor: hex }}
+									title={name}
+									onClick={() =>
+										applyData(lnIds, {
+											color:
+												name === 'default'
+													? undefined
+													: name,
+										})
+									}
+								/>
+							))}
+						</div>
+					</Row>
 					<Row label="表示">
 						<Toggle
 							label="前面"
@@ -1123,6 +1145,26 @@ export function Inspector({
 							current={common(curves, (n) => n.data.w ?? 'thin')}
 							onPick={(v) => applyData(cvIds, { w: v })}
 						/>
+					</Row>
+					<Row label="線色">
+						<div className="vobject-colors">
+							{Object.entries(LINE_COLORS).map(([name, hex]) => (
+								<button
+									key={name}
+									className={`vobject-swatch${common(curves, (n) => n.data.color ?? 'default') === name ? ' active' : ''}`}
+									style={{ backgroundColor: hex }}
+									title={name}
+									onClick={() =>
+										applyData(cvIds, {
+											color:
+												name === 'default'
+													? undefined
+													: name,
+										})
+									}
+								/>
+							))}
+						</div>
 					</Row>
 					<Row label="表示">
 						<Toggle

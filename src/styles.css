@@ -1594,3 +1594,129 @@ textarea.vobject-label-input {
 .dark .vobject.plain {
 	outline-color: rgba(255, 255, 255, 0.28);
 }
+
+/* ─── CSV/TSV 取込・書出モーダル ─── */
+.modal.csv {
+	width: 560px;
+	max-height: calc(100vh - 64px);
+	overflow-y: auto;
+}
+
+.csv-tabs {
+	display: flex;
+	gap: 4px;
+	margin: 0 0 12px;
+	border-bottom: 1px solid #e5e5e5;
+}
+.csv-tabs button {
+	border: none;
+	background: none;
+	padding: 6px 14px;
+	font-size: 13px;
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+	color: inherit;
+}
+.csv-tabs button.active {
+	border-bottom-color: #4a90d9;
+	font-weight: bold;
+}
+
+.csv-src {
+	width: 100%;
+	box-sizing: border-box;
+	font: 12px/1.5 ui-monospace, Consolas, monospace;
+	border: 1px solid #c8c8c8;
+	border-radius: 6px;
+	padding: 6px 8px;
+	resize: vertical;
+}
+
+.csv-src-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 6px 0 10px;
+}
+.csv-src-actions button {
+	padding: 4px 10px;
+	border: 1px solid #c8c8c8;
+	border-radius: 6px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.csv-opts {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	margin: 8px 0;
+	font-size: 12px;
+	flex-wrap: wrap;
+}
+.csv-opts label {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	cursor: pointer;
+}
+
+.csv-preview-wrap {
+	max-height: 220px;
+	overflow: auto;
+	border: 1px solid #e0e0e0;
+	border-radius: 6px;
+}
+.csv-preview {
+	border-collapse: collapse;
+	width: 100%;
+	font-size: 11px;
+}
+.csv-preview th {
+	position: sticky;
+	top: 0;
+	background: #f6f6f6;
+	padding: 4px 6px;
+	border-bottom: 1px solid #e0e0e0;
+	text-align: left;
+}
+.csv-preview td {
+	padding: 3px 6px;
+	border-bottom: 1px solid #f0f0f0;
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.csv-preview .insp-select {
+	width: 100%;
+	font-size: 11px;
+	padding: 2px 4px;
+}
+
+.csv-warn {
+	color: #b4530a;
+	font-size: 12px;
+	margin: 8px 0;
+}
+
+.dark .csv-tabs {
+	border-bottom-color: #444;
+}
+.dark .csv-preview-wrap {
+	border-color: #444;
+}
+.dark .csv-preview th {
+	background: #2c2f36;
+	border-bottom-color: #444;
+}
+.dark .csv-preview td {
+	border-bottom-color: #333;
+}
+.dark .csv-src-actions button {
+	background: #2c2f36;
+	border-color: #555;
+	color: #eee;
+}

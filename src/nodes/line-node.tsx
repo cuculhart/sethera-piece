@@ -1,6 +1,6 @@
 import { useContext } from 'react'
 import { NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react'
-import { PIECE_COLORS } from './vobject-node'
+import { LINE_COLORS, PIECE_COLORS } from './vobject-node'
 import { HintContext } from '../hint-context'
 import type { LineCap, LineNodeType, LineWeight } from './types'
 
@@ -40,6 +40,7 @@ function Caps({
 	p1,
 	ah,
 	sw,
+	color,
 	capStart,
 	capEnd,
 }: {
@@ -49,6 +50,7 @@ function Caps({
 	/** 矢印の長さ（線はこの分だけ端から短く描かれている） */
 	ah: number
 	sw: number
+	color: string
 	capStart?: LineCap
 	capEnd?: LineCap
 }) {
@@ -64,7 +66,7 @@ function Caps({
 					cx={tx}
 					cy={ty}
 					r={dr}
-					fill={STROKE_COLOR}
+					fill={color}
 				/>
 			)
 		}
@@ -78,7 +80,7 @@ function Caps({
 			<polygon
 				key={end}
 				points={`${tx},${ty} ${bx - uy * ah * 0.45},${by + ux * ah * 0.45} ${bx + uy * ah * 0.45},${by - ux * ah * 0.45}`}
-				fill={STROKE_COLOR}
+				fill={color}
 			/>
 		)
 	}
@@ -100,6 +102,8 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 	const s = isDouble
 		? { width: DOUBLE_W }
 		: (STROKES[data.w as Exclude<LineWeight, 'double'>] ?? STROKES.thin)
+	// 線色（省略・未定義キーは既定色）
+	const sc = LINE_COLORS[data.color ?? 'default'] ?? STROKE_COLOR
 	const snap = (v: number) => Math.round(v / GRID) * GRID
 	// グリッド上の値だけ丸める。グリッド外の値はオブジェクトスナップ等で
 	// 意図的に置かれた位置とみなし尊重する（丸めると接合が崩れる）
@@ -131,7 +135,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 			y1={y1}
 			x2={x2}
 			y2={y2}
-			stroke={STROKE_COLOR}
+			stroke={sc}
 			strokeWidth={s.width}
 			strokeDasharray={'dash' in s ? s.dash : undefined}
 			strokeLinecap={'cap' in s ? s.cap : 'square'}
@@ -188,7 +192,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 				<path
 					d={arcD(w / 2, h / 2, a0, a1, !!data.fill, aCcw)}
 					fill={arcFill}
-					stroke={STROKE_COLOR}
+					stroke={sc}
 					strokeWidth={s.width}
 				/>
 				<path
@@ -201,7 +205,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 						aCcw
 					)}
 					fill="none"
-					stroke={STROKE_COLOR}
+					stroke={sc}
 					strokeWidth={s.width}
 				/>
 			</>
@@ -209,7 +213,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 			<path
 				d={arcD(w / 2, h / 2, a0, a1, !!data.fill, aCcw)}
 				fill={arcFill}
-				stroke={STROKE_COLOR}
+				stroke={sc}
 				strokeWidth={s.width}
 				strokeDasharray={s.dash}
 				strokeLinecap={s.cap}
@@ -230,7 +234,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 							? (PIECE_COLORS[data.fill]?.fill ?? 'none')
 							: 'none'
 					}
-					stroke={STROKE_COLOR}
+					stroke={sc}
 					strokeWidth={s.width}
 				/>
 				<ellipse
@@ -239,7 +243,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 					rx={Math.max(0, w / 2 - DOUBLE_GAP)}
 					ry={Math.max(0, h / 2 - DOUBLE_GAP)}
 					fill="none"
-					stroke={STROKE_COLOR}
+					stroke={sc}
 					strokeWidth={s.width}
 				/>
 			</>
@@ -252,7 +256,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 				fill={
 					data.fill ? (PIECE_COLORS[data.fill]?.fill ?? 'none') : 'none'
 				}
-				stroke={STROKE_COLOR}
+				stroke={sc}
 				strokeWidth={s.width}
 				strokeDasharray={s.dash}
 				strokeLinecap={s.cap}
@@ -274,7 +278,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 							? (PIECE_COLORS[data.fill]?.fill ?? 'none')
 							: 'none'
 					}
-					stroke={STROKE_COLOR}
+					stroke={sc}
 					strokeWidth={s.width}
 				/>
 				<rect
@@ -283,7 +287,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 					width={Math.max(0, w - DOUBLE_GAP * 2)}
 					height={Math.max(0, h - DOUBLE_GAP * 2)}
 					fill="none"
-					stroke={STROKE_COLOR}
+					stroke={sc}
 					strokeWidth={s.width}
 				/>
 			</>
@@ -296,7 +300,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 				fill={
 					data.fill ? (PIECE_COLORS[data.fill]?.fill ?? 'none') : 'none'
 				}
-				stroke={STROKE_COLOR}
+				stroke={sc}
 				strokeWidth={s.width}
 				strokeDasharray={s.dash}
 				strokeLinecap={s.cap}
@@ -375,6 +379,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 						}
 						ah={ah}
 						sw={s.width}
+						color={sc}
 						capStart={data.capStart}
 						capEnd={data.capEnd}
 					/>
