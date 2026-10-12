@@ -89,6 +89,7 @@ export function PaperFrame({
 				>
 					<span className="paper-tag-name">用紙</span>
 					<select
+						name="paper-size"
 						value={cfg.size}
 						onPointerDown={(e) => e.stopPropagation()}
 						onChange={(e) =>

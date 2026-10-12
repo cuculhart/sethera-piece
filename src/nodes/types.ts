@@ -73,6 +73,17 @@ export type LineData = {
 	w: LineWeight
 	front?: boolean
 	rect?: boolean
+	/** 楕円（rect と同じ外接ボックス意味論の図形バリアント） */
+	ellipse?: boolean
+	/** 円弧（外接楕円の一部。角度は度、0=3時方向） */
+	arc?: boolean
+	/** 斜線（'down'=左上→右下 ╲、'up'=左下→右上 ╱）。
+	 *  通常線のバリアントで端点装飾・線種・二重が使える */
+	diag?: 'down' | 'up'
+	arcStart?: number
+	arcEnd?: number
+	/** 角度の正方向。true=反時計回り（CAD/数学式、規定）・false=時計回り（SVG式） */
+	arcCcw?: boolean
 	/** 矩形の塗りつぶし色（PIECE_COLORS のキー名）。省略=塗りなし */
 	fill?: string
 	/** 始端・終端の端点装飾（通常線のみ。省略=なし） */
@@ -88,4 +99,21 @@ export type VObjectNodeType = Node<VObjectData, 'vobject'>
 export type ZoneNodeType = Node<ZoneData, 'zone'>
 export type CalcNodeType = Node<CalcData, 'calc'>
 export type LineNodeType = Node<LineData, 'line'>
-export type BoardNode = VObjectNodeType | ZoneNodeType | CalcNodeType | LineNodeType
+
+// 曲線（Catmull-Rom スプライン。pts はノード座標系、PAD 分オフセット）
+export type CurveData = {
+	pts: { x: number; y: number }[]
+	w?: Exclude<LineWeight, 'double'>
+	capStart?: LineCap
+	capEnd?: LineCap
+	front?: boolean
+	groupId?: string
+	locked?: boolean
+}
+export type CurveNodeType = Node<CurveData, 'curve'>
+export type BoardNode =
+	| VObjectNodeType
+	| ZoneNodeType
+	| CalcNodeType
+	| LineNodeType
+	| CurveNodeType

@@ -229,6 +229,7 @@ export function AggZoneNode({
 				</svg>
 				<select
 					className="aggzone-fn nodrag"
+					name="aggzone-fn"
 					value={fn}
 					onPointerDown={(e) => e.stopPropagation()}
 					onChange={(e) =>

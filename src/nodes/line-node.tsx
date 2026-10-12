@@ -6,7 +6,7 @@ import type { LineCap, LineNodeType, LineWeight } from './types'
 
 const GRID = 12
 const STROKE_COLOR = '#333'
-const STROKES: Record<
+export const STROKES: Record<
 	Exclude<LineWeight, 'double'>,
 	{ width: number; dash?: string; cap?: 'butt' | 'round' | 'square' }
 > = {
@@ -33,24 +33,19 @@ const WEIGHTS: [LineWeight, string][] = [
 
 /** 端点装飾（矢印・丸）。SVG marker でなく polygon/circle で自前描画する
  *  （html-to-image による印刷・画像化で確実に写すため）。
- *  矢印は基部を線の描き終わりに接し、先端を元の端点に置く */
+ *  矢印は基部を線の描き終わりに接し、先端を元の端点に置く。
+ *  p0/p1 の2点で方向を定義するため水平・垂直・斜線で共用できる */
 function Caps({
-	horiz,
-	x,
-	y,
-	w,
-	h,
+	p0,
+	p1,
 	ah,
 	sw,
 	capStart,
 	capEnd,
 }: {
-	horiz: boolean
-	/** 線の中心軸座標（横線の y / 縦線の x） */
-	x: number
-	y: number
-	w: number
-	h: number
+	/** 始端・終端の位置（キャップ先端が置かれる点＝線の端点） */
+	p0: [number, number]
+	p1: [number, number]
 	/** 矢印の長さ（線はこの分だけ端から短く描かれている） */
 	ah: number
 	sw: number
@@ -60,43 +55,29 @@ function Caps({
 	const dr = 1.8 + sw * 0.8 // 丸の半径
 	const render = (end: 's' | 'e', cap?: LineCap) => {
 		if (!cap || cap === 'none') return null
+		const [tx, ty] = end === 's' ? p0 : p1 // 先端（線の端点）
+		const [ox, oy] = end === 's' ? p1 : p0 // 反対端（矢印の向き基準）
 		if (cap === 'dot') {
-			return horiz ? (
+			return (
 				<circle
 					key={end}
-					cx={end === 's' ? 0 : w}
-					cy={y}
-					r={dr}
-					fill={STROKE_COLOR}
-				/>
-			) : (
-				<circle
-					key={end}
-					cx={x}
-					cy={end === 's' ? 0 : h}
+					cx={tx}
+					cy={ty}
 					r={dr}
 					fill={STROKE_COLOR}
 				/>
 			)
 		}
 		// 矢印: 先端を線の端点に、羽根を線の内側に伸ばす
-		if (horiz) {
-			const cx = end === 's' ? 0 : w
-			const dir = end === 's' ? -1 : 1
-			return (
-				<polygon
-					key={end}
-					points={`${cx},${y} ${cx - dir * ah},${y - ah * 0.45} ${cx - dir * ah},${y + ah * 0.45}`}
-					fill={STROKE_COLOR}
-				/>
-			)
-		}
-		const cy = end === 's' ? 0 : h
-		const dir = end === 's' ? -1 : 1
+		const len = Math.hypot(ox - tx, oy - ty) || 1
+		const ux = (ox - tx) / len
+		const uy = (oy - ty) / len
+		const bx = tx + ux * ah
+		const by = ty + uy * ah
 		return (
 			<polygon
 				key={end}
-				points={`${x},${cy} ${x - ah * 0.45},${cy - dir * ah} ${x + ah * 0.45},${cy - dir * ah}`}
+				points={`${tx},${ty} ${bx - uy * ah * 0.45},${by + ux * ah * 0.45} ${bx + uy * ah * 0.45},${by - ux * ah * 0.45}`}
 				fill={STROKE_COLOR}
 			/>
 		)
@@ -120,6 +101,12 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 		? { width: DOUBLE_W }
 		: (STROKES[data.w as Exclude<LineWeight, 'double'>] ?? STROKES.thin)
 	const snap = (v: number) => Math.round(v / GRID) * GRID
+	// グリッド上の値だけ丸める。グリッド外の値はオブジェクトスナップ等で
+	// 意図的に置かれた位置とみなし尊重する（丸めると接合が崩れる）
+	const snapOrKeep = (v: number) => {
+		const g = snap(v)
+		return Math.abs(v - g) < 2 ? g : Math.round(v)
+	}
 	// 線はボックスの上辺(横線)/左辺(縦線)に描く。
 	// ボックスがグリッド吸着されるので、線の端点が必ずグリッド点上に来て角が結合できる
 	const off = s.width / 2
@@ -151,7 +138,127 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 		/>
 	)
 
-	const body = data.rect ? (
+	// 円弧パス: bbox 内接楕円の一部。角度は度（0=3時方向）。
+	// ccw=true なら反時計回りが正（CAD/数学式）、false なら時計回り（SVG式）
+	// pie=true なら中心へ閉じた扇形（塗り用）
+	const arcD = (
+		rx: number,
+		ry: number,
+		a0: number,
+		a1: number,
+		pie: boolean,
+		ccw: boolean
+	) => {
+		const cx = w / 2
+		const cy = h / 2
+		const sy = ccw ? -1 : 1 // 反時計回りは sin を反転（y軸が下向きのため）
+		const sw = ccw ? 0 : 1 // SVG sweep: 反時計回り=0
+		const pt = (deg: number) => {
+			const a = (deg * Math.PI) / 180
+			return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) * sy }
+		}
+		const delta = (((a1 - a0) % 360) + 360) % 360
+		if (delta === 0) {
+			// 全周（a0==a1）は半円×2で描く
+			const p0 = pt(a0)
+			const pm = pt(a0 + 180)
+			const seg = `A ${rx} ${ry} 0 0 ${sw} ${pm.x} ${pm.y} A ${rx} ${ry} 0 0 ${sw} ${p0.x} ${p0.y}`
+			return pie
+				? `M ${cx} ${cy} L ${p0.x} ${p0.y} ${seg} Z`
+				: `M ${p0.x} ${p0.y} ${seg}`
+		}
+		const p0 = pt(a0)
+		const p1 = pt(a1)
+		const seg = `A ${rx} ${ry} 0 ${delta > 180 ? 1 : 0} ${sw} ${p1.x} ${p1.y}`
+		return pie
+			? `M ${cx} ${cy} L ${p0.x} ${p0.y} ${seg} Z`
+			: `M ${p0.x} ${p0.y} ${seg}`
+	}
+	const a0 = data.arcStart ?? 0
+	const a1 = data.arcEnd ?? 270
+	const aCcw = data.arcCcw !== false // 省略=CAD式（反時計回り）
+	const arcFill = data.fill
+		? (PIECE_COLORS[data.fill]?.fill ?? 'none')
+		: 'none'
+
+	const body = data.arc ? (
+		// 円弧は外接楕円の切り取り（線種・塗り=扇形・二重を共有）
+		isDouble ? (
+			<>
+				<path
+					d={arcD(w / 2, h / 2, a0, a1, !!data.fill, aCcw)}
+					fill={arcFill}
+					stroke={STROKE_COLOR}
+					strokeWidth={s.width}
+				/>
+				<path
+					d={arcD(
+						Math.max(1, w / 2 - DOUBLE_GAP),
+						Math.max(1, h / 2 - DOUBLE_GAP),
+						a0,
+						a1,
+						false,
+						aCcw
+					)}
+					fill="none"
+					stroke={STROKE_COLOR}
+					strokeWidth={s.width}
+				/>
+			</>
+		) : (
+			<path
+				d={arcD(w / 2, h / 2, a0, a1, !!data.fill, aCcw)}
+				fill={arcFill}
+				stroke={STROKE_COLOR}
+				strokeWidth={s.width}
+				strokeDasharray={s.dash}
+				strokeLinecap={s.cap}
+			/>
+		)
+	) : data.ellipse ? (
+		// 楕円は rect と同じ外接ボックス意味論（塗り・線種を共有）。
+		// 二重線は外側＋ inset の2重楕円
+		isDouble ? (
+			<>
+				<ellipse
+					cx={w / 2}
+					cy={h / 2}
+					rx={w / 2}
+					ry={h / 2}
+					fill={
+						data.fill
+							? (PIECE_COLORS[data.fill]?.fill ?? 'none')
+							: 'none'
+					}
+					stroke={STROKE_COLOR}
+					strokeWidth={s.width}
+				/>
+				<ellipse
+					cx={w / 2}
+					cy={h / 2}
+					rx={Math.max(0, w / 2 - DOUBLE_GAP)}
+					ry={Math.max(0, h / 2 - DOUBLE_GAP)}
+					fill="none"
+					stroke={STROKE_COLOR}
+					strokeWidth={s.width}
+				/>
+			</>
+		) : (
+			<ellipse
+				cx={w / 2}
+				cy={h / 2}
+				rx={w / 2}
+				ry={h / 2}
+				fill={
+					data.fill ? (PIECE_COLORS[data.fill]?.fill ?? 'none') : 'none'
+				}
+				stroke={STROKE_COLOR}
+				strokeWidth={s.width}
+				strokeDasharray={s.dash}
+				strokeLinecap={s.cap}
+			/>
+		)
+	) : data.rect ? (
 		// 矩形はボックス境界上にストローク中心を置く（外側半分は
 		// overflow:visible で描画）。隣接矩形の共有辺が同一グリッド座標に
 		// なるため完全に重なり、1本の線に見える
@@ -195,6 +302,33 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 				strokeLinecap={s.cap}
 			/>
 		)
+	) : data.diag ? (
+		// 斜線は枠の対角線（端点=箱の角）。二重は中心線に垂直方向 ±GAP/2
+		(() => {
+			const [sx, sy, ex, ey] =
+				data.diag === 'down'
+					? ([0, 0, w, h] as const)
+					: ([0, h, w, 0] as const)
+			const len = Math.hypot(ex - sx, ey - sy) || 1
+			const ux = (ex - sx) / len
+			const uy = (ey - sy) / len
+			const seg = (o: number, key?: string) =>
+				line(
+					sx + ux * cutS - uy * o,
+					sy + uy * cutS + ux * o,
+					ex - ux * cutE - uy * o,
+					ey - uy * cutE + ux * o,
+					key
+				)
+			return isDouble ? (
+				<>
+					{seg(-DOUBLE_GAP / 2, 'a')}
+					{seg(DOUBLE_GAP / 2, 'b')}
+				</>
+			) : (
+				seg(0)
+			)
+		})()
 	) : isDouble ? (
 		horiz ? (
 			<>
@@ -219,13 +353,26 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 		>
 			<svg className="linenode-svg" width={w} height={h}>
 				{body}
-				{!data.rect && (
+				{!data.rect && !data.ellipse && !data.arc && (
 					<Caps
-						horiz={horiz}
-						x={horiz ? 0 : axis}
-						y={horiz ? axis : 0}
-						w={w}
-						h={h}
+						p0={
+							data.diag === 'down'
+								? [0, 0]
+								: data.diag === 'up'
+									? [0, h]
+									: horiz
+										? [0, axis]
+										: [axis, 0]
+						}
+						p1={
+							data.diag === 'down'
+								? [w, h]
+								: data.diag === 'up'
+									? [w, 0]
+									: horiz
+										? [w, axis]
+										: [axis, h]
+						}
 						ah={ah}
 						sw={s.width}
 						capStart={data.capStart}
@@ -268,9 +415,9 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 				minHeight={GRID}
 				onResizeEnd={(_e, p) => {
 					updateNode(id, {
-						position: { x: snap(p.x), y: snap(p.y) },
-						width: Math.max(GRID, snap(p.width)),
-						height: Math.max(GRID, snap(p.height)),
+						position: { x: snapOrKeep(p.x), y: snapOrKeep(p.y) },
+						width: Math.max(GRID, snapOrKeep(p.width)),
+						height: Math.max(GRID, snapOrKeep(p.height)),
 					})
 				}}
 			/>

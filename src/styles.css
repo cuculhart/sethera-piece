@@ -278,7 +278,8 @@ textarea.insp-text {
 /* グループ（カスタムピース）: 選択中メンバーと同じグループ全員を囲む */
 .vobject.gmember,
 .calcnode.gmember,
-.linenode.gmember {
+.linenode.gmember,
+.curvenode.gmember {
 	outline: 1.5px dashed #5577cc;
 	outline-offset: 4px;
 	border-radius: 4px;
@@ -287,7 +288,8 @@ textarea.insp-text {
 /* ロック: 移動・リサイズ・削除・編集が抑止されている状態の目印 */
 .vobject.locked,
 .calcnode.locked,
-.linenode.locked {
+.linenode.locked,
+.curvenode.locked {
 	outline: 1.5px dashed #b08800;
 	outline-offset: 3px;
 	border-radius: 4px;
@@ -1392,4 +1394,203 @@ textarea.vobject-label-input {
 
 .quiet .settings-hex.invalid {
 	background: #f5eaea;
+}
+
+/* ---- スナップガイド＋寸法リードアウト（ドラッグ/リサイズ中のみ表示） ---- */
+
+.snaplayer {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 400;
+}
+
+.snapguide {
+	position: absolute;
+	background: #ff7f2a;
+	opacity: 0.85;
+}
+.snapguide.v {
+	top: 0;
+	bottom: 0;
+	width: 1px;
+}
+.snapguide.h {
+	left: 0;
+	right: 0;
+	height: 1px;
+}
+
+.snaphud {
+	position: absolute;
+	font-size: 11px;
+	font-family: monospace;
+	background: rgba(38, 42, 50, 0.88);
+	color: #f5f2ea;
+	border-radius: 4px;
+	padding: 2px 6px;
+	white-space: nowrap;
+}
+
+.capturing .snaplayer,
+.capturing .curvelayer,
+.capturing .curvehint {
+	display: none;
+}
+
+/* ---- curve piece (曲線) ---- */
+
+.curvenode {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.curvenode-svg {
+	display: block;
+	overflow: visible;
+}
+
+/* 選択中に出る頂点ハンドル */
+.curve-vtx {
+	fill: #fff;
+	stroke: #5577cc;
+	stroke-width: 1.5;
+	cursor: move;
+}
+
+/* セグメント挿入用の透明ヒット線（見えない・クリックのみ拾う） */
+.curve-seghit {
+	stroke: transparent;
+	stroke-width: 10;
+	pointer-events: stroke;
+	cursor: crosshair;
+}
+
+/* 曲線打ち込み中のプレビューレイヤー */
+.curvelayer {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 400;
+	overflow: visible;
+}
+
+.curvehint {
+	position: absolute;
+	top: 8px;
+	left: 50%;
+	transform: translateX(-50%);
+	font-size: 11px;
+	background: rgba(38, 42, 50, 0.88);
+	color: #f5f2ea;
+	border-radius: 4px;
+	padding: 3px 10px;
+	white-space: nowrap;
+	z-index: 401;
+	pointer-events: none;
+}
+
+/* ---- ダークテーマ: CAD風の暗い盤面（ピース・罫線など内容色は不変。
+   用紙枠は白のまま = 印刷物のプレビュー） ---- */
+
+.dark .react-flow {
+	background: #1b1e26;
+}
+
+.dark .toolbar,
+.dark .inspector,
+.dark .modal {
+	background: rgba(35, 38, 46, 0.97);
+	border-color: #3a3f4a;
+	color: #e6e3da;
+}
+
+.dark .toolbar h1,
+.dark .inspector label,
+.dark .inspector .insp-title,
+.dark .modal h2 {
+	color: #e6e3da;
+}
+
+.dark .modal-sub,
+.dark .insp-hint,
+.dark .tpl-count {
+	color: #9aa0ab;
+}
+
+.dark .toolbar button,
+.dark .inspector button,
+.dark .inspector input,
+.dark .inspector select,
+.dark .inspector textarea,
+.dark .modal button:not(.danger),
+.dark .modal input,
+.dark .modal select,
+.dark .modal textarea {
+	background: #2c313b;
+	border-color: #464c58;
+	color: #e6e3da;
+}
+
+.dark .toolbar button:hover:not(:disabled),
+.dark .inspector button:hover,
+.dark .modal button:hover:not(.danger) {
+	background: #363c47;
+}
+
+.dark .toolbar button.active,
+.dark .inspector button.active {
+	background: #3d4454;
+	border-color: #6a7384;
+	color: #ffffff;
+}
+
+.dark .insp-sec {
+	border-top-color: #3a3f4a;
+}
+
+.dark .vobject-align-btn {
+	border-color: #464c58;
+}
+
+.dark .insp-text,
+.dark .insp-num,
+.dark .insp-select {
+	background: #262b34;
+	border-color: #464c58;
+	color: #e6e3da;
+}
+
+.dark .settings-hex.invalid {
+	background: #4a2c2c;
+}
+
+/* 選択・ガイド系は暗所で見える明度へ */
+.dark .vobject.gmember,
+.dark .calcnode.gmember,
+.dark .linenode.gmember,
+.dark .curvenode.gmember {
+	outline-color: #7fa0f0;
+}
+
+.dark .vobject.locked,
+.dark .calcnode.locked,
+.dark .linenode.locked,
+.dark .curvenode.locked {
+	outline-color: #e0a800;
+}
+
+.dark .vobject.zpart,
+.dark .calcnode.zpart {
+	outline-color: #ff6b6b;
+	box-shadow:
+		0 0 0 5px rgba(255, 107, 107, 0.18),
+		inset 0 0 0 3px rgba(255, 107, 107, 0.15),
+		0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ゾーン描画・枠なしピースのガイド線（暗所でも視認） */
+.dark .vobject.plain {
+	outline-color: rgba(255, 255, 255, 0.28);
 }

@@ -136,6 +136,7 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 				/>
 				<select
 					className="calc-op nodrag"
+					name="calc-op"
 					value={data.op}
 					onPointerDown={(e) => e.stopPropagation()}
 					onChange={(e) =>
@@ -176,6 +177,7 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 				</button>
 				<select
 					className="calc-round nodrag"
+					name="calc-round"
 					title="丸め"
 					value={data.round}
 					onPointerDown={(e) => e.stopPropagation()}
@@ -260,6 +262,7 @@ function ConstInput({
 			<span className="calc-operand-tag">{tag}</span>
 			<input
 				className="nodrag"
+				name="calc-const"
 				value={draft}
 				placeholder="定数"
 				onPointerDown={(e) => e.stopPropagation()}

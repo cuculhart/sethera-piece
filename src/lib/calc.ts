@@ -98,7 +98,7 @@ export function operandSource(
 
 /** ノードの表示書式を取得（line 等の非数値ノードは空） */
 export function numFmtOf(n: BoardNode | undefined): NumFmt {
-	if (!n || n.type === 'line') return {}
+	if (!n || n.type === 'line' || n.type === 'curve') return {}
 	return {
 		digits: n.data.digits,
 		comma: n.data.comma,

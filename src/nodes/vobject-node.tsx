@@ -163,6 +163,7 @@ function VObjectEditor({
 			{showLabel && (
 				<textarea
 					className="vobject-label-input"
+					name="vobject-label"
 					value={draftLabel}
 					autoFocus
 					placeholder="テキスト（Enter=改行 / Ctrl+Enter=確定）"
@@ -186,6 +187,7 @@ function VObjectEditor({
 			{showValue && (
 				<input
 					className="vobject-value-input"
+					name="vobject-value"
 					value={draftValue}
 					autoFocus={!showLabel}
 					placeholder="数値"

@@ -39,13 +39,19 @@ import {
 } from './paper-frame'
 import { AggZoneNode } from './nodes/agg-zone-node'
 import { CalcNode } from './nodes/calc-node'
-import { LineNode } from './nodes/line-node'
+import { LineNode, STROKES as LINE_STROKES } from './nodes/line-node'
+import { CurveNode, normalizeCurvePts } from './nodes/curve-node'
 import { VObjectNode } from './nodes/vobject-node'
 import { zonePartialIds } from './lib/calc'
 import { loadTemplates, saveTemplates, type Template } from './lib/templates'
 import { Inspector } from './inspector'
 import { HintContext } from './hint-context'
-import type { BoardNode, VObjectKind, VObjectNodeType } from './nodes/types'
+import type {
+	BoardNode,
+	LineWeight,
+	VObjectKind,
+	VObjectNodeType,
+} from './nodes/types'
 
 type Snapshot = { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg }
 
@@ -61,17 +67,20 @@ const fixZoneSelectable = (n: BoardNode): BoardNode =>
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.6.0'
+const APP_VERSION = '0.8.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 const TB_COLOR_KEY = 'sethera-toolbar-color'
 const QUIET_KEY = 'sethera-quiet'
+const THEME_KEY = 'sethera-theme'
+type Theme = 'standard' | 'quiet' | 'dark'
 
 const nodeTypes = {
 	vobject: VObjectNode,
 	zone: AggZoneNode,
 	calc: CalcNode,
 	line: LineNode,
+	curve: CurveNode,
 }
 
 // 連動リサイズの対象型と最小サイズ（zone は対象外）
@@ -79,6 +88,7 @@ const RESIZE_MIN: Record<string, { w: number; h: number }> = {
 	vobject: { w: 36, h: 24 },
 	calc: { w: 64, h: 32 },
 	line: { w: 12, h: 12 },
+	curve: { w: 24, h: 24 },
 }
 
 /** hex色（#rgb/#rrggbb）が暗めかどうか（輝度で判定） */
@@ -197,6 +207,340 @@ function withDragFollowers(
 	return extra.length ? [...changes, ...extra] : changes
 }
 
+/** 複数ノードの同時ドラッグを剛体移動にする。RF の snapToGrid は
+ *  ドラッグ中ノードを個別にグリッドへ丸め、非グリッドの相対オフセット
+ *  （円弧端点との接合など）を壊すため、先頭の position 変更（ドライバー）
+ *  の差分を全員へそのまま適用する。差分への吸着はグリッド倍数（位相維持）。
+ *  オブジェクトスナップが成立した軸は precise な値を優先して丸めない */
+function rigidifyDrag(
+	changes: NodeChange<BoardNode>[],
+	nds: BoardNode[],
+	grid: { x: boolean; y: boolean }
+): NodeChange<BoardNode>[] {
+	const mov = changes.filter(
+		(c): c is NodePositionChange =>
+			c.type === 'position' && c.dragging === true && !!c.position
+	)
+	if (mov.length < 2) {
+		// ドラッグ終端: RF は最終位置を絶対グリッド吸着で別バッチ送信し、
+		// 掴んだノードだけ位相を失う。最終フレームの位置を維持して固定する
+		// （単独ドラッグでは最終フレーム=終端位置で実質 no-op。
+		//  updater が2回実行されても結果が同じ純粋処理にする）
+		const ends = changes.some(
+			(c) =>
+				c.type === 'position' &&
+				c.dragging === false &&
+				!!c.position
+		)
+		if (!ends) return changes
+		// 追従メンバーは RF から終了変更が来ず dragging:true が残る。
+		// getNodesInside は dragging ノードを常に範囲内とみなすため、
+		// 残ると以後の全範囲選択に巻き込まれる。ここで全員降ろす
+		const ended = new Set(
+			changes
+				.filter(
+					(c) =>
+						c.type === 'position' && c.dragging === false
+				)
+				.map((c) => ('id' in c ? c.id : ''))
+		)
+		const unstuck: NodeChange<BoardNode>[] = []
+		for (const n of nds) {
+			if ((n as { dragging?: boolean }).dragging && !ended.has(n.id))
+				unstuck.push({
+					id: n.id,
+					type: 'position',
+					dragging: false,
+				})
+		}
+		return [
+			...changes.map((c) => {
+				if (
+					c.type !== 'position' ||
+					c.dragging !== false ||
+					!c.position
+				)
+					return c
+				const n = nds.find((x) => x.id === c.id)
+				if (!n) return c
+				return {
+					...c,
+					position: { x: n.position.x, y: n.position.y },
+				}
+			}),
+			...unstuck,
+		]
+	}
+	const rn = nds.find((n) => n.id === mov[0].id)
+	if (!rn) return changes
+	const ddx = mov[0].position!.x - rn.position.x
+	const ddy = mov[0].position!.y - rn.position.y
+	const dx = grid.x ? Math.round(ddx / GRID) * GRID : ddx
+	const dy = grid.y ? Math.round(ddy / GRID) * GRID : ddy
+	return changes.map((c) => {
+		if (c.type !== 'position' || !c.position) return c
+		if (c.dragging !== true && c.dragging !== false) return c
+		const n = nds.find((x) => x.id === c.id)
+		if (!n) return c
+		return {
+			...c,
+			position: { x: n.position.x + dx, y: n.position.y + dy },
+		}
+	})
+}
+
+/** グリッド上の値だけ丸める。グリッド外の値はオブジェクトスナップ等で
+ *  意図的に置かれた位置とみなし尊重する（丸めると接合が崩れる） */
+const snapOrKeep = (v: number) => {
+	const g = Math.round(v / GRID) * GRID
+	return Math.abs(v - g) < 2 ? g : Math.round(v)
+}
+
+// ---- オブジェクトスナップ＋寸法リードアウト（ドラッグ/リサイズ中のみ） ----
+
+const sizeOf = (n: BoardNode) => ({
+	w: n.measured?.width ?? n.width ?? 0,
+	h: n.measured?.height ?? n.height ?? 0,
+})
+
+type SnapHud = {
+	x: number
+	y: number
+	w: number
+	h: number
+	kind: 'drag' | 'resize'
+}
+type SnapResult = {
+	changes: NodeChange<BoardNode>[]
+	guides: { xs: number[]; ys: number[] }
+	hud: SnapHud
+}
+
+/** 吸着ターゲット座標（移動中・選択中ノードを除く全ノード＋用紙の辺/中心） */
+function snapTargets(
+	nds: BoardNode[],
+	paper: PaperCfg,
+	exclIds: Set<string>,
+	exclGids: Set<string>
+) {
+	const xs = new Set<number>()
+	const ys = new Set<number>()
+	const push = (x: number, y: number, w: number, h: number) => {
+		xs.add(x)
+		xs.add(x + w / 2)
+		xs.add(x + w)
+		ys.add(y)
+		ys.add(y + h / 2)
+		ys.add(y + h)
+	}
+	for (const n of nds) {
+		if (exclIds.has(n.id)) continue
+		const g = gidOf(n)
+		if (g && exclGids.has(g)) continue
+		const { w, h } = sizeOf(n)
+		push(n.position.x, n.position.y, w, h)
+		// 円弧の実端点も吸着対象に（箱の辺・中点では拾えない位置にある）
+		if (n.type === 'line' && n.data.arc) {
+			const cx = n.position.x + w / 2
+			const cy = n.position.y + h / 2
+			const sy = n.data.arcCcw !== false ? -1 : 1
+			for (const deg of [n.data.arcStart ?? 0, n.data.arcEnd ?? 270]) {
+				const a = (deg * Math.PI) / 180
+				xs.add(cx + (w / 2) * Math.cos(a))
+				ys.add(cy + (h / 2) * Math.sin(a) * sy)
+			}
+		}
+		// 曲線は全頂点を吸着対象に（端点・中間点どちらにも合わせられる）
+		if (n.type === 'curve') {
+			for (const p of n.data.pts) {
+				xs.add(n.position.x + p.x)
+				ys.add(n.position.y + p.y)
+			}
+		}
+	}
+	if (paper.on) {
+		const { w, h } = paperDims(paper)
+		push(paper.x, paper.y, w, h)
+	}
+	return { xs: [...xs], ys: [...ys] }
+}
+
+/** 候補とターゲットの最小差分が閾値以内ならその差分とターゲット座標を返す */
+function snapBest(cands: number[], targets: number[], th: number) {
+	let off = 0
+	let hit: number | null = null
+	let min = th + 1
+	for (const c of cands)
+		for (const t of targets) {
+			const d = Math.abs(c - t)
+			if (d <= th && d < min) {
+				min = d
+				off = t - c
+				hit = t
+			}
+		}
+	return { off, hit }
+}
+
+/** ドラッグ/リサイズの change 列にスナップ補正を掛け、ガイド・HUD情報を返す。
+ *  対象操作がなければ null */
+function applyBoardSnap(
+	changes: NodeChange<BoardNode>[],
+	nds: BoardNode[],
+	paper: PaperCfg,
+	th: number
+): SnapResult | null {
+	const moving = changes.filter(
+		(c): c is NodePositionChange =>
+			c.type === 'position' && c.dragging === true && !!c.position
+	)
+	const exclIds = new Set(
+		nds.filter((n) => n.selected).map((n) => n.id)
+	)
+	const exclGids = new Set(
+		nds
+			.filter((n) => n.selected)
+			.map(gidOf)
+			.filter((g): g is string => !!g)
+	)
+	if (moving.length) {
+		// 移動中ノード群の外接ボックス（デルタ適用後）
+		const n0 = nds.find((n) => n.id === moving[0].id)
+		if (!n0) return null
+		const dx = moving[0].position!.x - n0.position.x
+		const dy = moving[0].position!.y - n0.position.y
+		let x0 = Infinity,
+			y0 = Infinity,
+			x1 = -Infinity,
+			y1 = -Infinity
+		const ids = new Set(moving.map((c) => c.id))
+		for (const c of moving) {
+			const n = nds.find((x) => x.id === c.id)
+			if (!n) continue
+			exclIds.add(n.id)
+			const { w, h } = sizeOf(n)
+			x0 = Math.min(x0, n.position.x + dx)
+			y0 = Math.min(y0, n.position.y + dy)
+			x1 = Math.max(x1, n.position.x + dx + w)
+			y1 = Math.max(y1, n.position.y + dy + h)
+		}
+		const bw = x1 - x0
+		const bh = y1 - y0
+		const t = snapTargets(nds, paper, exclIds, exclGids)
+		const candsX = [x0, x0 + bw / 2, x1]
+		const candsY = [y0, y0 + bh / 2, y1]
+		if (moving.length === 1) {
+			// 罫線の実ストロークは箱辺+半線幅。線の「芯」を吸着候補に
+			// して円弧端点などとの接合を正確にする
+			if (
+				n0.type === 'line' &&
+				!n0.data.rect &&
+				!n0.data.ellipse &&
+				!n0.data.arc &&
+				!n0.data.diag
+			) {
+				const sw = (
+					LINE_STROKES[
+						n0.data.w as Exclude<LineWeight, 'double'>
+					] ?? LINE_STROKES.thin
+				).width
+				const off = sw / 2
+				const sz = sizeOf(n0)
+				if (sz.w >= sz.h) candsY.push(y0 + off)
+				else candsX.push(x0 + off)
+			}
+			// 曲線は全頂点を吸着候補に（端点を他要素に合わせられる）
+			if (n0.type === 'curve') {
+				for (const p of n0.data.pts) {
+					candsX.push(n0.position.x + dx + p.x)
+					candsY.push(n0.position.y + dy + p.y)
+				}
+			}
+		}
+		const rx = snapBest(candsX, t.xs, th)
+		const ry = snapBest(candsY, t.ys, th)
+		const ox = rx.hit !== null ? rx.off : 0
+		const oy = ry.hit !== null ? ry.off : 0
+		return {
+			changes: changes.map((c) =>
+				c.type === 'position' &&
+				c.dragging === true &&
+				c.position &&
+				ids.has(c.id)
+					? {
+							...c,
+							position: {
+								x: c.position.x + ox,
+								y: c.position.y + oy,
+							},
+						}
+					: c
+			),
+			guides: {
+				xs: rx.hit !== null ? [rx.hit] : [],
+				ys: ry.hit !== null ? [ry.hit] : [],
+			},
+			hud: { x: x0 + ox, y: y0 + oy, w: bw, h: bh, kind: 'drag' },
+		}
+	}
+	// リサイズ: ドライバーの dimensions change（resizing=true）
+	const dim = changes.find(
+		(c): c is NodeDimensionChange =>
+			c.type === 'dimensions' && c.resizing === true && !!c.dimensions
+	)
+	if (!dim) return null
+	const src = nds.find((n) => n.id === dim.id)
+	if (!src) return null
+	exclIds.add(src.id)
+	const posC = changes.find(
+		(c): c is NodePositionChange =>
+			c.type === 'position' && c.id === dim.id && !!c.position
+	)
+	const { w: ow, h: oh } = sizeOf(src)
+	const nx = posC?.position?.x ?? src.position.x
+	const ny = posC?.position?.y ?? src.position.y
+	const nw = dim.dimensions!.width
+	const nh = dim.dimensions!.height
+	const oldR = src.position.x + ow
+	const oldB = src.position.y + oh
+	const newR = nx + nw
+	const newB = ny + nh
+	const t = snapTargets(nds, paper, exclIds, exclGids)
+	const leftMoved = nx !== src.position.x
+	const rightMoved = newR !== oldR
+	const topMoved = ny !== src.position.y
+	const bottomMoved = newB !== oldB
+	const rx = leftMoved
+		? snapBest([nx], t.xs, th)
+		: rightMoved
+			? snapBest([newR], t.xs, th)
+			: { off: 0, hit: null }
+	const ry = topMoved
+		? snapBest([ny], t.ys, th)
+		: bottomMoved
+			? snapBest([newB], t.ys, th)
+			: { off: 0, hit: null }
+	const sx = nx + (leftMoved ? rx.off : 0)
+	const sy = ny + (topMoved ? ry.off : 0)
+	const sw = nw + (leftMoved ? -rx.off : rightMoved ? rx.off : 0)
+	const sh = nh + (topMoved ? -ry.off : bottomMoved ? ry.off : 0)
+	return {
+		changes: changes.map((c) => {
+			if (!('id' in c) || c.id !== dim.id) return c
+			if (c.type === 'dimensions' && c.dimensions)
+				return { ...c, dimensions: { width: sw, height: sh } }
+			if (c.type === 'position' && c.position)
+				return { ...c, position: { x: sx, y: sy } }
+			return c
+		}),
+		guides: {
+			xs: rx.hit !== null ? [rx.hit] : [],
+			ys: ry.hit !== null ? [ry.hit] : [],
+		},
+		hud: { x: sx, y: sy, w: sw, h: sh, kind: 'resize' },
+	}
+}
+
 function loadDoc(): { nodes: BoardNode[]; edges: Edge[]; paper: PaperCfg } {
 	try {
 		const raw = localStorage.getItem(DOC_KEY)
@@ -272,6 +616,11 @@ function Board() {
 	const [snapOn, setSnapOn] = useState(false)
 	const [lineMode, setLineMode] = useState(false)
 	const [zoneDraw, setZoneDraw] = useState(false)
+	const [curveDraw, setCurveDraw] = useState(false)
+	const [curvePts, setCurvePts] = useState<{ x: number; y: number }[]>([])
+	const [curveHover, setCurveHover] = useState<{ x: number; y: number } | null>(
+		null
+	)
 	const zoneDrawStart = useRef<{ x: number; y: number } | null>(null)
 	const [tbCollapsed, setTbCollapsed] = useState(false)
 	const [modal, setModal] = useState<
@@ -280,12 +629,20 @@ function Board() {
 	const [tbColor, setTbColor] = useState(
 		() => localStorage.getItem(TB_COLOR_KEY) ?? ''
 	)
-	const [quiet, setQuiet] = useState(
-		() => localStorage.getItem(QUIET_KEY) === '1'
-	)
-	const applyQuiet = (on: boolean) => {
-		setQuiet(on)
-		if (on) localStorage.setItem(QUIET_KEY, '1')
+	// テーマ: 標準／Quiet（UI明度抑制）／ダーク（CAD風の暗い盤面）
+	// 旧 sethera-quiet 保存値は quiet に読み替え（書き込みは新キーに一元化）
+	const [theme, setTheme] = useState<Theme>(() => {
+		const t = localStorage.getItem(THEME_KEY)
+		if (t === 'dark' || t === 'quiet') return t
+		if (localStorage.getItem(QUIET_KEY) === '1') return 'quiet'
+		return 'standard'
+	})
+	const applyTheme = (t: Theme) => {
+		setTheme(t)
+		if (t === 'standard') localStorage.removeItem(THEME_KEY)
+		else localStorage.setItem(THEME_KEY, t)
+		// 旧キーは読み替え用に残す（書き込みも同期して不整合を防ぐ）
+		if (t === 'quiet') localStorage.setItem(QUIET_KEY, '1')
 		else localStorage.removeItem(QUIET_KEY)
 	}
 	const applyTbColor = (c: string) => {
@@ -322,6 +679,12 @@ function Board() {
 	const histPast = useRef<Snapshot[]>([])
 	const histFuture = useRef<Snapshot[]>([])
 	const [histLen, setHistLen] = useState({ past: 0, future: 0 })
+	// ドラッグ/リサイズ中のスナップガイドと寸法リードアウト（フロー座標）
+	const [snapGuides, setSnapGuides] = useState<{
+		xs: number[]
+		ys: number[]
+	} | null>(null)
+	const [snapHud, setSnapHud] = useState<SnapHud | null>(null)
 	const snapRef = useRef<Snapshot | null>(null)
 	snapRef.current = { nodes, edges, paper }
 	const lastRec = useRef({ t: 0, key: '' })
@@ -338,15 +701,43 @@ function Board() {
 		}
 		const off = () => {
 			altDown.current = false
+			// フォーカス喪失中にブラウザ外でボタンを離すと mouseup が
+			// 届かず、範囲選択・ドラッグが永続する。d3-drag は window の
+			// mouseup を待つので合成イベントで終了させる
+			// （pointer 版に備えて pointerup も投げる）
+			window.dispatchEvent(
+				new MouseEvent('mouseup', { bubbles: true, view: window })
+			)
+			window.dispatchEvent(
+				new PointerEvent('pointerup', { bubbles: true })
+			)
+		}
+		const vis = () => {
+			if (document.hidden) off()
 		}
 		window.addEventListener('keydown', dn)
 		window.addEventListener('keyup', up)
 		window.addEventListener('blur', off)
+		document.addEventListener('visibilitychange', vis)
 		return () => {
 			window.removeEventListener('keydown', dn)
 			window.removeEventListener('keyup', up)
 			window.removeEventListener('blur', off)
+			document.removeEventListener('visibilitychange', vis)
 		}
+	}, [])
+
+	// 起動時に残留した dragging:true を掃除（dragging ノードは
+	// getNodesInside が常に範囲内とみなし範囲選択に巻き込まれる）。
+	// 追従合成の副作用で残り得るため、ドラッグ終端でも降ろしている
+	useEffect(() => {
+		setNodes((nds) =>
+			nds.some((n) => n.dragging)
+				? nds.map((n) =>
+						n.dragging ? { ...n, dragging: false } : n
+					)
+				: nds
+		)
 	}, [])
 
 	// 変更適用前に現状態を積む。150ms以内の連続記録は同一ジェスチャとして統合、
@@ -435,10 +826,51 @@ function Board() {
 								: 'misc'
 			}
 			if (recKey) record(recKey, recKey.startsWith('r:') ? 600 : 0)
+			// オブジェクトスナップ＋寸法リードアウト（ドラッグ/リサイズ中のみ。
+			// フォロワー計算より先にドライバーの値を補正して連動を保つ）
+			const snapped = applyBoardSnap(
+				changes,
+				snapRef.current!.nodes,
+				snapRef.current!.paper,
+				// グリッド吸着下でもオブジェクトスナップが届くよう、
+				// 閾値は半グリッド超（グリッド+6pxの端点にも吸着可）
+				Math.max(6 / (rf.getZoom() || 1), GRID / 2 + 1)
+			)
+			if (snapped) {
+				// 吸着OFFではガイド・位置補正を抑止（寸法HUDは常時表示）
+				setSnapGuides(snapOn ? snapped.guides : null)
+				setSnapHud(snapped.hud)
+			} else if (
+				changes.some(
+					(c) =>
+						(c.type === 'position' && c.dragging === false) ||
+						(c.type === 'dimensions' &&
+							c.dimensions &&
+							c.resizing !== true)
+				)
+			) {
+				setSnapGuides(null)
+				setSnapHud(null)
+			}
+			const ch = snapped && snapOn ? snapped.changes : changes
 			setNodes((nds) =>
 				applyNodeChanges(
 					withResizeFollowers(
-						altDown.current ? changes : withDragFollowers(changes, nds),
+						// グループ追従を含めた全ドラッグ変更を剛体化
+						// （ドライバーも位相を維持。Alt個別移動は mov<2 で素通し）
+						rigidifyDrag(
+							altDown.current ? ch : withDragFollowers(ch, nds),
+							nds,
+							{
+								// オブジェクトスナップ成立軸はその精度を優先（丸めない）
+								x:
+									snapOn &&
+									!(snapped && snapped.guides.xs.length > 0),
+								y:
+									snapOn &&
+									!(snapped && snapped.guides.ys.length > 0),
+							}
+						),
 						nds
 					).filter((c) => {
 						// ロック: ドラッグ・リサイズ・削除・ノード内UIからの更新を抑止
@@ -458,7 +890,7 @@ function Board() {
 				)
 			)
 		},
-		[record]
+		[record, rf, snapOn]
 	)
 	const onEdgesChange = useCallback(
 		(changes: EdgeChange<Edge>[]) => {
@@ -647,6 +1079,61 @@ function Board() {
 		])
 	}
 
+	// 選択物（グループ展開済）を N 個・間隔 dx,dy で一括複製。
+	// 各コピーは新しい id/groupId の独立実体（duplicate と同じ規則）。
+	// 1回の setNodes/setEdges で全コピー生成 → Undo 1ステップ
+	const arrayDup = (count: number, dx: number, dy: number) => {
+		const n = Math.min(50, Math.max(1, Math.round(count)))
+		const sel = expandGroups(nodes.filter((x) => x.selected))
+		if (!sel.length) return
+		record('app')
+		const inner = innerEdges(sel)
+		const newNodes: BoardNode[] = []
+		const newEdges: Edge[] = []
+		for (let i = 1; i <= n; i++) {
+			const idMap = new Map(
+				sel.map((x) => [x.id, crypto.randomUUID()])
+			)
+			const gMap = new Map<string, string>()
+			for (const x of sel) {
+				const g = gidOf(x)
+				let data = x.data
+				if (g) {
+					if (!gMap.has(g)) gMap.set(g, crypto.randomUUID())
+					data = {
+						...x.data,
+						groupId: gMap.get(g),
+					} as BoardNode['data']
+				}
+				newNodes.push({
+					...serializeNode(x),
+					...(x.type === 'zone' ? { selectable: false } : {}),
+					id: idMap.get(x.id)!,
+					position: {
+						x: x.position.x + dx * i,
+						y: x.position.y + dy * i,
+					},
+					data,
+					selected: true,
+				} as BoardNode)
+			}
+			for (const e of inner) {
+				newEdges.push({
+					...serializeEdge(e),
+					id: crypto.randomUUID(),
+					source: idMap.get(e.source)!,
+					target: idMap.get(e.target)!,
+					selected: false,
+				})
+			}
+		}
+		setNodes((nds) => [
+			...nds.map((x) => (x.selected ? { ...x, selected: false } : x)),
+			...newNodes,
+		])
+		setEdges((es) => [...es, ...newEdges])
+	}
+
 	// Ctrl+C / Ctrl+V / Ctrl+D（選択ノード間のエッジも一緒に複製）
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
@@ -814,6 +1301,40 @@ function Board() {
 		])
 	}
 
+	const addEllipse = () => {
+		record('app')
+		const c = viewportCenter()
+		setNodes((nds) => [
+			...nds,
+			{
+				id: crypto.randomUUID(),
+				type: 'line',
+				position: { x: c.x - 120, y: c.y - 90 },
+				width: 240,
+				height: 180,
+				zIndex: 0,
+				data: { w: 'thin', ellipse: true },
+			},
+		])
+	}
+
+	const addDiag = () => {
+		record('app')
+		const c = viewportCenter()
+		setNodes((nds) => [
+			...nds,
+			{
+				id: crypto.randomUUID(),
+				type: 'line',
+				position: { x: c.x - 90, y: c.y - 60 },
+				width: 180,
+				height: 120,
+				zIndex: 0,
+				data: { w: 'thin', diag: 'down' },
+			},
+		])
+	}
+
 	const createZone = () => {
 		record('app')
 		const selected = nodes.filter(
@@ -925,6 +1446,65 @@ function Board() {
 		window.addEventListener('keydown', onEsc)
 		return () => window.removeEventListener('keydown', onEsc)
 	}, [zoneDraw])
+
+	// 曲線描画モード: 打ち込んだ頂点を確定（3点未満は破棄）
+	const commitCurve = () => {
+		if (curvePts.length >= 3) {
+			record('app')
+			const minX = Math.min(...curvePts.map((p) => p.x))
+			const minY = Math.min(...curvePts.map((p) => p.y))
+			const nz = normalizeCurvePts(
+				{ x: minX, y: minY },
+				curvePts.map((p) => ({ x: p.x - minX, y: p.y - minY }))
+			)
+			setNodes((nds) => [
+				...nds,
+				{
+					id: crypto.randomUUID(),
+					type: 'curve',
+					position: nz.position,
+					width: nz.width,
+					height: nz.height,
+					zIndex: 0,
+					data: { w: 'thin', pts: nz.pts },
+					selected: true,
+				},
+			])
+		}
+		setCurveDraw(false)
+		setCurvePts([])
+		setCurveHover(null)
+	}
+
+	// 曲線描画モード中: Enterで確定、Escでキャンセル、
+	// カーソル位置はグリッド吸着してプレビュー。
+	// 確定は「最後と同じ点を再クリック」でも行う（onPaneClick側。
+	// 連打が dblclick 判定されるため window dblclick は使わない）
+	useEffect(() => {
+		if (!curveDraw) return
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				setCurveDraw(false)
+				setCurvePts([])
+				setCurveHover(null)
+			} else if (e.key === 'Enter') {
+				commitCurve()
+			}
+		}
+		const onMove = (e: globalThis.MouseEvent) => {
+			const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+			setCurveHover({
+				x: Math.round(p.x / GRID) * GRID,
+				y: Math.round(p.y / GRID) * GRID,
+			})
+		}
+		window.addEventListener('keydown', onKey)
+		window.addEventListener('mousemove', onMove)
+		return () => {
+			window.removeEventListener('keydown', onKey)
+			window.removeEventListener('mousemove', onMove)
+		}
+	}, [curveDraw, curvePts, rf])
 
 	// Σボタン: ピース選択中は従来どおり即作成、未選択時は描画モードのON/OFF
 	const onZoneButton = () => {
@@ -1127,26 +1707,38 @@ function Board() {
 		return () => window.removeEventListener('keydown', onEsc)
 	}, [modal])
 
-	// 罫線はドロップ時に常にグリッドへ吸着
+	// 罫線はドロップ時にグリッドへ吸着（ただしグリッド±2px内のみ。
+	// 円弧端点への接合など、オブジェクトスナップで置かれた非グリッド
+	// 位置は尊重する）
 	const onNodeDragStop = useCallback(
 		(_e: unknown, _n: BoardNode, dragged: BoardNode[]) => {
 			const moved = new Set(
 				dragged.filter((n) => n.type === 'line').map((n) => n.id)
 			)
 			if (moved.size === 0) return
-			setNodes((nds) =>
-				nds.map((n) =>
-					moved.has(n.id)
-						? {
-								...n,
-								position: {
-									x: Math.round(n.position.x / GRID) * GRID,
-									y: Math.round(n.position.y / GRID) * GRID,
-								},
-							}
-						: n
-				)
-			)
+			setNodes((nds) => {
+				// 複数メンバーのグループは剛体移動済み。掴んだノードだけを
+				// 個別に丸めると接合（円弧端点との0.75pxずれ等）が崩れる
+				const seen = new Set<string>()
+				const multi = new Set<string>()
+				for (const n of nds) {
+					const g = gidOf(n)
+					if (!g) continue
+					if (seen.has(g)) multi.add(g)
+					else seen.add(g)
+				}
+				return nds.map((n) => {
+					const g = gidOf(n)
+					if (!moved.has(n.id) || (g && multi.has(g))) return n
+					return {
+						...n,
+						position: {
+							x: snapOrKeep(n.position.x),
+							y: snapOrKeep(n.position.y),
+						},
+					}
+				})
+			})
 		},
 		[]
 	)
@@ -1204,7 +1796,7 @@ function Board() {
 
 	return (
 		<div
-			className={`board${printImg ? ' hasimg' : ''}${quiet ? ' quiet' : ''}`}
+			className={`board${printImg ? ' hasimg' : ''}${theme !== 'standard' ? ` ${theme}` : ''}`}
 			ref={wrapRef}
 		>
 			<HintContext.Provider
@@ -1213,10 +1805,11 @@ function Board() {
 						ids: hintedIds,
 						partial: partialIds,
 						group: groupSelIds,
+						snapOn,
 						set: (ids: string[]) => setHintedIds(new Set(ids)),
 						clear: () => setHintedIds(new Set()),
 					}),
-					[hintedIds, partialIds, groupSelIds]
+					[hintedIds, partialIds, groupSelIds, snapOn]
 				)}
 			>
 				<ReactFlow
@@ -1246,8 +1839,30 @@ function Board() {
 					// RF 組み込みの矢印キー移動（a11y）は無効化。
 					// F4 の矢印微移動（12px/Shift=1px）と二重に動くのを防ぐ
 					disableKeyboardA11y
-					onPaneClick={() => {
+					// RF 組み込み要素（選択矩形・エッジ・ハンドル等）の明暗
+					colorMode={theme === 'dark' ? 'dark' : 'light'}
+					// 曲線描画中は既存ノードを誤って掴まないよう操作を抑止
+					nodesDraggable={!curveDraw}
+					elementsSelectable={!curveDraw}
+					onPaneClick={(e) => {
 						if (zoneDraw) setZoneDraw(false)
+						if (curveDraw) {
+							const p = rf.screenToFlowPosition({
+								x: e.clientX,
+								y: e.clientY,
+							})
+							const g = {
+								x: Math.round(p.x / GRID) * GRID,
+								y: Math.round(p.y / GRID) * GRID,
+							}
+							const last = curvePts[curvePts.length - 1]
+							if (last && last.x === g.x && last.y === g.y) {
+								// 最後と同じ点の再クリック（≈ダブルクリック）=確定
+								if (curvePts.length >= 3) commitCurve()
+								return
+							}
+							setCurvePts((pts) => [...pts, g])
+						}
 					}}
 					{...(savedViewport ? { defaultViewport: savedViewport } : { fitView: true })}
 				>
@@ -1256,7 +1871,13 @@ function Board() {
 							variant={BackgroundVariant.Dots}
 							gap={GRID}
 							size={1.2}
-							color={quiet ? '#cfc8ba' : undefined}
+							color={
+								theme === 'dark'
+									? '#454c5e'
+									: theme === 'quiet'
+										? '#cfc8ba'
+										: undefined
+							}
 						/>
 					)}
 					{paper.on && (
@@ -1269,6 +1890,100 @@ function Board() {
 						/>
 					)}
 				</ReactFlow>
+				{(snapGuides || snapHud) &&
+					(() => {
+						const rect = wrapRef.current?.getBoundingClientRect()
+						const toScreen = (fx: number, fy: number) => {
+							const p = rf.flowToScreenPosition({ x: fx, y: fy })
+							return {
+								x: p.x - (rect?.left ?? 0),
+								y: p.y - (rect?.top ?? 0),
+							}
+						}
+						return (
+							<div className="snaplayer">
+								{snapGuides?.xs.map((x) => (
+									<div
+										key={`gx${x}`}
+										className="snapguide v"
+										style={{ left: toScreen(x, 0).x }}
+									/>
+								))}
+								{snapGuides?.ys.map((y) => (
+									<div
+										key={`gy${y}`}
+										className="snapguide h"
+										style={{ top: toScreen(0, y).y }}
+									/>
+								))}
+								{snapHud &&
+									(() => {
+										const p = toScreen(
+											snapHud.x + snapHud.w,
+											snapHud.y
+										)
+										return (
+											<div
+												className="snaphud"
+												style={{ left: p.x + 8, top: p.y - 26 }}
+											>
+												{snapHud.kind === 'drag'
+													? `${Math.round(snapHud.x)}, ${Math.round(snapHud.y)}`
+													: `${Math.round(snapHud.w)}×${Math.round(snapHud.h)}`}
+											</div>
+										)
+									})()}
+							</div>
+						)
+					})()}
+				{curveDraw && (
+					<div className="curvehint">
+						曲線: クリックで頂点（3点以上）、同じ点の再クリック or Enter で確定、Escでキャンセル
+					</div>
+				)}
+				{curveDraw &&
+					curvePts.length > 0 &&
+					(() => {
+						const rect = wrapRef.current?.getBoundingClientRect()
+						const toScreen = (fx: number, fy: number) => {
+							const p = rf.flowToScreenPosition({ x: fx, y: fy })
+							return {
+								x: p.x - (rect?.left ?? 0),
+								y: p.y - (rect?.top ?? 0),
+							}
+						}
+						const all = curveHover
+							? [...curvePts, curveHover]
+							: curvePts
+						return (
+							<svg className="curvelayer">
+								<polyline
+									points={all
+										.map((p) => {
+											const s = toScreen(p.x, p.y)
+											return `${s.x},${s.y}`
+										})
+										.join(' ')}
+									fill="none"
+									stroke="#6666cc"
+									strokeWidth={1.5}
+									strokeDasharray="6 4"
+								/>
+								{all.map((p, i) => {
+									const s = toScreen(p.x, p.y)
+									return (
+										<circle
+											key={i}
+											cx={s.x}
+											cy={s.y}
+											r={3}
+											fill={i === curvePts.length ? '#9999dd' : '#6666cc'}
+										/>
+									)
+								})}
+							</svg>
+						)
+					})()}
 				{selNodes.length > 0 && (
 					<Inspector
 						sel={selNodes}
@@ -1276,6 +1991,7 @@ function Board() {
 						edges={edges}
 						applyData={applyData}
 						applyNode={applyNode}
+						onArray={arrayDup}
 					/>
 				)}
 				<div
@@ -1311,6 +2027,41 @@ function Board() {
 						矩形
 					</button>
 					<button
+						data-icon="◯"
+						onClick={addEllipse}
+						title="楕円（w=h で正円。塗り・線種・二重線に対応）"
+					>
+						楕円
+					</button>
+					<button
+						data-icon="╲"
+						onClick={addDiag}
+						title="斜線（枠の対角線。↗向きはペインで切替。端点装飾・線種・二重線に対応）"
+					>
+						斜線
+					</button>
+					<button
+						data-icon="∿"
+						className={curveDraw ? 'active' : ''}
+						onClick={() => {
+							if (curveDraw) {
+								// 描画中の再クリック: 3点以上あれば確定、なければ取消
+								if (curvePts.length >= 3) commitCurve()
+								else {
+									setCurveDraw(false)
+									setCurvePts([])
+									setCurveHover(null)
+								}
+							} else {
+								setZoneDraw(false)
+								setCurveDraw(true)
+							}
+						}}
+						title="曲線を描画（クリックで頂点を打ち込み、同じ点の再クリック or Enter で確定。全点を通るスプライン）"
+					>
+						曲線
+					</button>
+					<button
 						data-icon="✎"
 						className={lineMode ? 'active' : ''}
 						onClick={() => setLineMode((v) => !v)}
@@ -1341,7 +2092,7 @@ function Board() {
 					<button
 						data-icon="吸"
 						className={snapOn ? 'active' : ''}
-						title="グリッドへの吸着"
+						title="吸着: グリッド吸着＋他ピースの端点/中点/中心への吸着（ガイド線表示）"
 						onClick={() => setSnapOn(!snapOn)}
 					>
 						吸着
@@ -1410,6 +2161,7 @@ function Board() {
 					<input
 						ref={fileRef}
 						type="file"
+						name="docfile"
 						accept=".json,application/json"
 						style={{ display: 'none' }}
 						onChange={importDoc}
@@ -1477,8 +2229,8 @@ function Board() {
 								<SettingsPane
 									color={tbColor}
 									onChange={applyTbColor}
-									quiet={quiet}
-									onQuiet={applyQuiet}
+									theme={theme}
+									onTheme={applyTheme}
 									onClose={() => setModal(null)}
 								/>
 							) : modal === 'templates' ? (
@@ -1526,14 +2278,14 @@ function Board() {
 function SettingsPane({
 	color,
 	onChange,
-	quiet,
-	onQuiet,
+	theme,
+	onTheme,
 	onClose,
 }: {
 	color: string
 	onChange: (c: string) => void
-	quiet: boolean
-	onQuiet: (on: boolean) => void
+	theme: Theme
+	onTheme: (t: Theme) => void
 	onClose: () => void
 }) {
 	const [draft, setDraft] = useState(color)
@@ -1550,6 +2302,7 @@ function SettingsPane({
 				<label htmlFor="tbcolor">ツールバーの色</label>
 				<input
 					type="color"
+					name="tbcolor-pick"
 					value={pickValue}
 					onChange={(e) => {
 						setDraft(e.target.value)
@@ -1577,14 +2330,17 @@ function SettingsPane({
 				</button>
 			</div>
 			<div className="settings-row">
-				<label>
-					<input
-						type="checkbox"
-						checked={quiet}
-						onChange={(e) => onQuiet(e.target.checked)}
-					/>{' '}
-					Quiet モード（UI の明度を抑える）
-				</label>
+				<label htmlFor="theme">テーマ</label>
+				<select
+					id="theme"
+					className="insp-select"
+					value={theme}
+					onChange={(e) => onTheme(e.target.value as Theme)}
+				>
+					<option value="standard">標準</option>
+					<option value="quiet">Quiet（UI の明度を抑える）</option>
+					<option value="dark">ダーク（暗い盤面）</option>
+				</select>
 			</div>
 			<div className="modal-actions">
 				<button onClick={onClose}>閉じる</button>
@@ -1641,6 +2397,7 @@ function TemplatesPane({
 				<div className="tpl-save">
 					<input
 						className="insp-text"
+						name="tpl-name"
 						value={name}
 						placeholder="新規テンプレート名"
 						onChange={(e) => setName(e.target.value)}
@@ -1664,6 +2421,7 @@ function TemplatesPane({
 							) : editingId === t.id ? (
 								<input
 									className="insp-text tpl-name-input"
+									name="tpl-rename"
 									value={editName}
 									autoFocus
 									onChange={(e) =>
@@ -1725,6 +2483,7 @@ function TemplatesPane({
 						JSON から読み込み
 						<input
 							type="file"
+							name="tpl-file"
 							accept=".json,application/json"
 							style={{ display: 'none' }}
 							onChange={onImport}

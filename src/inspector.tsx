@@ -20,6 +20,7 @@ import type {
 	BoardNode,
 	CalcNodeType,
 	CalcOp,
+	CurveNodeType,
 	LineNodeType,
 	LineWeight,
 	RoundMode,
@@ -59,6 +60,10 @@ const WEIGHT_OPTS: readonly (readonly [LineWeight, string])[] = [
 	['chain', '一鎖'],
 	['double', '二重'],
 ]
+// 曲線は二重線非対応（平行オフセット曲線が未実装のため）
+const CURVE_WEIGHT_OPTS = WEIGHT_OPTS.filter(
+	([k]) => k !== 'double'
+) as readonly (readonly [Exclude<LineWeight, 'double'>, string])[]
 const CAP_OPTS = [
 	['none', 'なし'],
 	['arrow', '→'],
@@ -296,6 +301,7 @@ function Sel<T extends string>({
 	return (
 		<select
 			className="insp-select"
+			name="insp-select"
 			value={current ?? '__mixed'}
 			onChange={(e) => onPick(e.currentTarget.value as T)}
 		>
@@ -346,6 +352,7 @@ function TextField({
 	return multiline ? (
 		<textarea
 			className="insp-text"
+			name="insp-text"
 			value={draft}
 			placeholder={placeholder}
 			rows={Math.min(8, Math.max(2, draft.split('\n').length))}
@@ -356,6 +363,7 @@ function TextField({
 	) : (
 		<input
 			className="insp-text"
+			name="insp-text"
 			value={draft}
 			placeholder={placeholder}
 			onChange={(e) => setDraft(e.currentTarget.value)}
@@ -396,6 +404,7 @@ function SizeCtl({
 			</button>
 			<input
 				className="insp-text insp-num insp-size"
+				name="insp-size"
 				value={draft}
 				placeholder="混在"
 				onChange={(e) => setDraft(e.currentTarget.value)}
@@ -441,6 +450,7 @@ function NumField({
 	return (
 		<input
 			className="insp-text insp-num"
+			name="insp-num"
 			value={draft}
 			placeholder="—"
 			onChange={(e) => setDraft(e.currentTarget.value)}
@@ -456,21 +466,71 @@ function NumField({
 	)
 }
 
+// 配列複製: 個数 N と間隔 dx,dy を指定して一括複製（明細行の縦並び等）
+function ArrayDup({
+	defDy,
+	onRun,
+}: {
+	defDy: number
+	onRun: (count: number, dx: number, dy: number) => void
+}) {
+	const [n, setN] = useState('5')
+	const [dx, setDx] = useState('0')
+	const [dy, setDy] = useState(String(defDy))
+	useEffect(() => setDy(String(defDy)), [defDy])
+	const num = (s: string) => {
+		const v = parseFloat(s)
+		return isNaN(v) ? 0 : v
+	}
+	const cnt = Math.round(num(n))
+	const inp = (
+		v: string,
+		set: (s: string) => void,
+		title: string
+	) => (
+		<input
+			className="insp-text insp-num insp-size"
+			name="insp-arr"
+			value={v}
+			title={title}
+			onChange={(e) => set(e.currentTarget.value)}
+		/>
+	)
+	return (
+		<Row label="個数/間隔">
+			{inp(n, setN, '個数（最大50）')}
+			{inp(dx, setDx, '間隔 dx（px）')}
+			{inp(dy, setDy, '間隔 dy（px）')}
+			<button
+				className="vobject-align-btn"
+				disabled={cnt < 1}
+				title="選択物を 個数×間隔(dx,dy) で一括複製（グループは別IDで独立）"
+				onClick={() => onRun(cnt, num(dx), num(dy))}
+			>
+				複製
+			</button>
+		</Row>
+	)
+}
+
 export function Inspector({
 	sel,
 	nodes,
 	edges,
 	applyData,
 	applyNode,
+	onArray,
 }: {
 	sel: BoardNode[]
 	nodes: BoardNode[]
 	edges: Edge[]
 	applyData: ApplyData
 	applyNode: ApplyNode
+	onArray: (count: number, dx: number, dy: number) => void
 }) {
 	const vos = sel.filter((n): n is VObjectNodeType => n.type === 'vobject')
 	const lines = sel.filter((n): n is LineNodeType => n.type === 'line')
+	const curves = sel.filter((n): n is CurveNodeType => n.type === 'curve')
 	const calcs = sel.filter((n): n is CalcNodeType => n.type === 'calc')
 	const zones = sel.filter((n): n is ZoneNodeType => n.type === 'zone')
 	const voIds = vos.map((n) => n.id)
@@ -478,12 +538,14 @@ export function Inspector({
 	const numVos = vos.filter((n) => n.data.kind !== 'text')
 	const numVoIds = numVos.map((n) => n.id)
 	const lnIds = lines.map((n) => n.id)
+	const cvIds = curves.map((n) => n.id)
 	const caIds = calcs.map((n) => n.id)
 	const zoIds = zones.map((n) => n.id)
 
 	const head = [
 		vos.length > 0 && `ピース×${vos.length}`,
 		lines.length > 0 && `罫線×${lines.length}`,
+		curves.length > 0 && `曲線×${curves.length}`,
 		calcs.length > 0 && `計算×${calcs.length}`,
 		zones.length > 0 && `Σ×${zones.length}`,
 	]
@@ -494,11 +556,23 @@ export function Inspector({
 	const wOf = (n: BoardNode) => n.measured?.width ?? n.width ?? 0
 	const hOf = (n: BoardNode) => n.measured?.height ?? n.height ?? 0
 	const allIds = sel.map((n) => n.id)
-	// 矩形罫線の塗りつぶし（rect のみ対象）
-	const rectLines = lines.filter((n) => n.data.rect)
-	// 端点装飾（通常線のみ。rect 不可）
-	const plainLines = lines.filter((n) => !n.data.rect)
-	const fillCur = common(rectLines, (n) => n.data.fill ?? '')
+	// 図形罫線（矩形・楕円・円弧）は塗りつぶし対象。形状は相互変換できる
+	const boxLines = lines.filter(
+		(n) => n.data.rect || n.data.ellipse || n.data.arc
+	)
+	// 端点装飾（通常線のみ。図形は不可）
+	const plainLines = lines.filter(
+		(n) => !n.data.rect && !n.data.ellipse && !n.data.arc
+	)
+	const fillCur = common(boxLines, (n) => n.data.fill ?? '')
+	// 図形の形状（四角/楕円/円弧）。同一ボックスデータなので相互変換できる
+	const boxIds = boxLines.map((n) => n.id)
+	const boxShape = common(boxLines, (n) =>
+		n.data.arc ? 'arc' : n.data.ellipse ? 'ellipse' : 'rect'
+	)
+	// 円弧の始角・終角（度、0=3時方向・時計回り正）
+	const arcs = boxLines.filter((n) => n.data.arc)
+	const arcIds = arcs.map((n) => n.id)
 	// サイズステッパー（全選択の共通値。混在時は null）
 	const wCom = sel.length > 0 ? common(sel, wOf) : null
 	const hCom = sel.length > 0 ? common(sel, hOf) : null
@@ -534,7 +608,7 @@ export function Inspector({
 	const fillable = fillTargets.filter((n) => containerOf(n) !== null)
 	// グループ（カスタムピース）。対象は vobject/calc/line（zone 不可）。
 	// 選択に既存メンバーが混ざる場合はそのグループ全体を対象に取り込む
-	const GROUPABLE = new Set(['vobject', 'calc', 'line'])
+	const GROUPABLE = new Set(['vobject', 'calc', 'line', 'curve'])
 	const gid = (n: BoardNode) => (n.data as { groupId?: string }).groupId
 	const selGids = new Set(
 		sel.map(gid).filter((g): g is string => !!g)
@@ -554,6 +628,17 @@ export function Inspector({
 		lockables.every(
 			(n) => !!(n.data as { locked?: boolean }).locked
 		)
+	// 配列複製の既定間隔（選択の外接高をグリッド吸着。明細行の縦並び想定）
+	const arrDefDy = sel.length
+		? Math.max(
+				12,
+				Math.round(
+					(Math.max(...sel.map((n) => n.position.y + hOf(n))) -
+						Math.min(...sel.map((n) => n.position.y))) /
+						12
+				) * 12
+			)
+		: 48
 	const align =
 		sel.length >= 2
 			? {
@@ -694,6 +779,12 @@ export function Inspector({
 							移動・リサイズ・削除・編集を抑止
 						</span>
 					</Row>
+				</section>
+			)}
+			{sel.length > 0 && (
+				<section className="insp-sec">
+					<div className="insp-title">配列複製</div>
+					<ArrayDup defDy={arrDefDy} onRun={onArray} />
 				</section>
 			)}
 			{sel.length > 0 && (
@@ -862,6 +953,32 @@ export function Inspector({
 					</Row>
 					{plainLines.length > 0 && (
 						<>
+							<Row label="斜線">
+								<Btns
+									options={
+										[
+											['none', 'なし'],
+											['down', '╲'],
+											['up', '╱'],
+										] as const
+									}
+									current={common(
+										plainLines,
+										(n) => n.data.diag ?? 'none'
+									)}
+									onPick={(v) =>
+										applyData(
+											plainLines.map((n) => n.id),
+											{
+												diag:
+													v === 'none'
+														? undefined
+														: v,
+											}
+										)
+									}
+								/>
+							</Row>
 							<Row label="始端">
 								<Btns
 									options={CAP_OPTS}
@@ -900,7 +1017,67 @@ export function Inspector({
 							</Row>
 						</>
 					)}
-					{rectLines.length > 0 && (
+					{boxLines.length > 0 && (
+						<Row label="形状">
+							<Btns
+								options={
+									[
+										['rect', '四角'],
+										['ellipse', '楕円'],
+										['arc', '円弧'],
+									] as const
+								}
+								current={boxShape}
+								onPick={(v) =>
+									applyData(boxIds, {
+										rect: v === 'rect' ? true : undefined,
+										ellipse:
+											v === 'ellipse' ? true : undefined,
+										arc: v === 'arc' ? true : undefined,
+										// 円弧へ変換した直後は 0°→270° の3/4弧
+										...(v === 'arc'
+											? { arcStart: 0, arcEnd: 270 }
+											: {}),
+									})
+								}
+							/>
+						</Row>
+					)}
+					{arcs.length > 0 && (
+						<Row label="角度">
+							<NumField
+								value={common(arcs, (n) => n.data.arcStart ?? 0)}
+								onCommit={(v) =>
+									applyData(arcIds, {
+										arcStart: v ?? 0,
+									})
+								}
+							/>
+							<span className="insp-hint">→</span>
+							<NumField
+								value={common(arcs, (n) => n.data.arcEnd ?? 270)}
+								onCommit={(v) =>
+									applyData(arcIds, {
+										arcEnd: v ?? 0,
+									})
+								}
+							/>
+							<span className="insp-hint">°</span>
+							<Toggle
+								label="反時計回り"
+								on={
+									common(
+										arcs,
+										(n) => n.data.arcCcw !== false
+									) === true
+								}
+								onFlip={(v) =>
+									applyData(arcIds, { arcCcw: v })
+								}
+							/>
+						</Row>
+					)}
+					{boxLines.length > 0 && (
 						<Row label="塗り">
 							<div className="vobject-colors">
 								<button
@@ -933,6 +1110,54 @@ export function Inspector({
 							</div>
 						</Row>
 					)}
+				</section>
+			)}
+			{curves.length > 0 && (
+				<section className="insp-sec">
+					<div className="insp-title">
+						曲線{curves.length > 1 ? ` ×${curves.length}` : ''}
+					</div>
+					<Row label="線種">
+						<Btns
+							options={CURVE_WEIGHT_OPTS}
+							current={common(curves, (n) => n.data.w ?? 'thin')}
+							onPick={(v) => applyData(cvIds, { w: v })}
+						/>
+					</Row>
+					<Row label="表示">
+						<Toggle
+							label="前面"
+							on={common(curves, (n) => !!n.data.front) === true}
+							onFlip={(v) =>
+								applyNode(cvIds, (n) => ({
+									data: { ...n.data, front: v },
+									zIndex: v ? 10 : 0,
+								}))
+							}
+						/>
+					</Row>
+					<Row label="始端">
+						<Btns
+							options={CAP_OPTS}
+							current={common(curves, (n) => n.data.capStart ?? 'none')}
+							onPick={(v) =>
+								applyData(cvIds, {
+									capStart: v === 'none' ? undefined : v,
+								})
+							}
+						/>
+					</Row>
+					<Row label="終端">
+						<Btns
+							options={CAP_OPTS}
+							current={common(curves, (n) => n.data.capEnd ?? 'none')}
+							onPick={(v) =>
+								applyData(cvIds, {
+									capEnd: v === 'none' ? undefined : v,
+								})
+							}
+						/>
+					</Row>
 				</section>
 			)}
 			{calcs.length > 0 && (
