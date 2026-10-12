@@ -62,3 +62,12 @@ export function contains(outer: Bounds, inner: Bounds, tol = 0): boolean {
 		inner.maxY <= outer.maxY + tol
 	)
 }
+
+/** ダーク盤面上かつ用紙外なら true（透明ピースの自動文字色を明色化する判定） */
+export function onDarkCanvas(
+	dark: boolean,
+	paperRect: Bounds | null,
+	box: Bounds
+): boolean {
+	return dark && (!paperRect || !contains(paperRect, box))
+}

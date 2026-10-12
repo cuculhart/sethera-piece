@@ -98,6 +98,7 @@ const NEG_OPTS = [
 ] as const
 const TEXT_COLOR_LABEL: Record<string, string> = {
 	auto: '自動',
+	white: '白',
 	black: '黒',
 	gray: 'グレー',
 	red: '赤',
@@ -208,10 +209,15 @@ function TextColorRow({
 										backgroundColor: '#fff',
 										border: '1px dashed #999',
 									}
-								: {
-										backgroundColor: TEXT_COLORS[name],
-										borderColor: TEXT_COLORS[name],
-									}
+								: name === 'white'
+									? {
+											backgroundColor: TEXT_COLORS[name],
+											borderColor: '#bbb',
+										}
+									: {
+											backgroundColor: TEXT_COLORS[name],
+											borderColor: TEXT_COLORS[name],
+										}
 						}
 						title={TEXT_COLOR_LABEL[name] ?? name}
 						onClick={() =>

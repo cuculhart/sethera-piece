@@ -76,7 +76,7 @@ const fixZoneSelectable = (n: BoardNode): BoardNode =>
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.9.0'
+const APP_VERSION = '0.9.1'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 const TB_COLOR_KEY = 'sethera-toolbar-color'
@@ -1900,10 +1900,26 @@ function Board() {
 						partial: partialIds,
 						group: groupSelIds,
 						snapOn,
+						dark: theme === 'dark',
+						paperRect: paper.on
+							? {
+									minX: paper.x,
+									minY: paper.y,
+									maxX: paper.x + paperDims(paper).w,
+									maxY: paper.y + paperDims(paper).h,
+								}
+							: null,
 						set: (ids: string[]) => setHintedIds(new Set(ids)),
 						clear: () => setHintedIds(new Set()),
 					}),
-					[hintedIds, partialIds, groupSelIds, snapOn]
+					[
+						hintedIds,
+						partialIds,
+						groupSelIds,
+						snapOn,
+						theme,
+						paper,
+					]
 				)}
 			>
 				<ReactFlow

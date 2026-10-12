@@ -8,7 +8,7 @@ import {
 	useReactFlow,
 	type NodeProps,
 } from '@xyflow/react'
-import { formatNumber } from '../lib/aggregate'
+import { formatNumber, onDarkCanvas } from '../lib/aggregate'
 import {
 	CALC_OPS,
 	CALC_OP_LABEL,
@@ -23,7 +23,15 @@ import { HintContext } from '../hint-context'
 import { TEXT_COLORS } from './vobject-node'
 import type { BoardNode, CalcNodeType, CalcOp, RoundMode } from './types'
 
-export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
+export function CalcNode({
+	id,
+	data,
+	selected,
+	positionAbsoluteX,
+	positionAbsoluteY,
+	width,
+	height,
+}: NodeProps<CalcNodeType>) {
 	const { updateNodeData } = useReactFlow()
 	const hint = useContext(HintContext)
 	const hinted = hint.ids.has(id)
@@ -35,9 +43,18 @@ export function CalcNode({ id, data, selected }: NodeProps<CalcNodeType>) {
 	const aSrc = operandSource(edges, id, 'a')
 	const bSrc = operandSource(edges, id, 'b')
 	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${gmem ? ' gmember' : ''}${data.locked ? ' locked' : ''}`
+	// ダーク盤面: 枠なし計算の自動文字色は用紙外だと読めないため明色化
 	const style = data.textColor
 		? { color: TEXT_COLORS[data.textColor] }
-		: undefined
+		: data.plain &&
+			  onDarkCanvas(hint.dark, hint.paperRect, {
+				  minX: positionAbsoluteX,
+				  minY: positionAbsoluteY,
+				  maxX: positionAbsoluteX + (width ?? 120),
+				  maxY: positionAbsoluteY + (height ?? 40),
+			  })
+			? { color: '#e6e3da' }
+			: undefined
 
 	const tools = selected && !data.locked ? (
 		<div className="calc-tools nodrag">

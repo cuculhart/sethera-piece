@@ -13,7 +13,7 @@ import {
 	type NodeProps,
 } from '@xyflow/react'
 import { HintContext } from '../hint-context'
-import { formatNumber } from '../lib/aggregate'
+import { formatNumber, onDarkCanvas } from '../lib/aggregate'
 import { numCls } from '../lib/calc'
 import type { VObjectData, VObjectNodeType } from './types'
 
@@ -35,6 +35,7 @@ export const PIECE_COLORS: Record<
 // 文字色パレット（'auto' は空=テーマ既定色を使う）
 export const TEXT_COLORS: Record<string, string> = {
 	auto: '',
+	white: '#f5f2ea',
 	black: '#1c1917',
 	gray: '#6b7280',
 	red: '#c92a2a',
@@ -53,7 +54,15 @@ export const LINE_COLORS: Record<string, string> = {
 	brown: '#a0653f',
 }
 
-export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) {
+export function VObjectNode({
+	id,
+	data,
+	selected,
+	positionAbsoluteX,
+	positionAbsoluteY,
+	width,
+	height,
+}: NodeProps<VObjectNodeType>) {
 	const hint = useContext(HintContext)
 	const hinted = hint.ids.has(id)
 	const zpart = hint.partial.has(id)
@@ -61,7 +70,20 @@ export function VObjectNode({ id, data, selected }: NodeProps<VObjectNodeType>) 
 	const [editing, setEditing] = useState(false)
 	const { kind, label, value, color } = data
 	const theme = PIECE_COLORS[color] ?? PIECE_COLORS.yellow
-	const textColor = TEXT_COLORS[data.textColor ?? 'auto'] || theme.text
+	let textColor = TEXT_COLORS[data.textColor ?? 'auto'] || theme.text
+	// ダーク盤面: 塗りなしピースの自動文字色は用紙外だと読めないため明色化
+	if (
+		color === 'none' &&
+		(!data.textColor || data.textColor === 'auto') &&
+		onDarkCanvas(hint.dark, hint.paperRect, {
+			minX: positionAbsoluteX,
+			minY: positionAbsoluteY,
+			maxX: positionAbsoluteX + (width ?? 60),
+			maxY: positionAbsoluteY + (height ?? 24),
+		})
+	) {
+		textColor = '#e6e3da'
+	}
 	const showLabel = kind !== 'number'
 	const showValue = kind !== 'text'
 	const align = data.align ?? 'c'

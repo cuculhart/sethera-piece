@@ -14,7 +14,13 @@ import {
 	useReactFlow,
 	type NodeProps,
 } from '@xyflow/react'
-import { AGG_FNS, aggregate, formatNumber, type AggFn } from '../lib/aggregate'
+import {
+	AGG_FNS,
+	aggregate,
+	formatNumber,
+	onDarkCanvas,
+	type AggFn,
+} from '../lib/aggregate'
 import { nodeValue, numCls, zoneMembers } from '../lib/calc'
 import { HintContext } from '../hint-context'
 import { TEXT_COLORS } from './vobject-node'
@@ -107,9 +113,22 @@ export function AggZoneNode({
 		-OVERY,
 		Math.min(data.chipPos?.y ?? zh - 30, zh - 8 + OVERY)
 	)
+	// ダーク盤面: 枠なしゾーンのチップ文字は用紙外だと読めないため明色化
+	const chipBox = isFree
+		? {
+				minX: positionAbsoluteX + chipX,
+				minY: positionAbsoluteY + chipY,
+				maxX: positionAbsoluteX + chipX + 60,
+				maxY: positionAbsoluteY + chipY + 24,
+			}
+		: zoneBounds
 	const chipStyle: CSSProperties = {
 		...(isFree ? { left: chipX, top: chipY } : {}),
-		...(data.textColor ? { color: TEXT_COLORS[data.textColor] } : {}),
+		...(data.textColor
+			? { color: TEXT_COLORS[data.textColor] }
+			: data.plain && onDarkCanvas(hint.dark, hint.paperRect, chipBox)
+				? { color: '#e6e3da' }
+				: {}),
 	}
 	const chipDrag = useRef<{
 		px: number
