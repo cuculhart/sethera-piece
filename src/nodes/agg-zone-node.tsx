@@ -21,9 +21,11 @@ import {
 	onDarkCanvas,
 	type AggFn,
 } from '../lib/aggregate'
-import { nodeValue, numCls, zoneMembers } from '../lib/calc'
+import { memberMatch, nodeValue, numCls, zoneMembers } from '../lib/calc'
 import { HintContext } from '../hint-context'
-import { TEXT_COLORS } from './vobject-node'
+import { fontStack } from '../lib/fonts'
+import { useT } from '../i18n'
+import { PIECE_COLORS, TEXT_COLORS } from './vobject-node'
 import type { AggLabelPos, BoardNode, ZoneNodeType } from './types'
 
 // 様子見: プリセットは「下」と「自由」の2択に絞る（他は必要になれば戻す）
@@ -55,6 +57,7 @@ export function AggZoneNode({
 }: NodeProps<ZoneNodeType>) {
 	const rf = useReactFlow()
 	const { updateNodeData } = rf
+	const t = useT()
 	const hint = useContext(HintContext)
 	const nodes = useNodes<BoardNode>()
 	const edges = useEdges()
@@ -79,16 +82,18 @@ export function AggZoneNode({
 	}
 
 	const members = zoneMembers(zoneBounds, nodes)
-	const values = members
+	// 色条件あり: 条件通過メンバーのみを集計・ハイライト対象にする
+	const matched = members.filter((m) => memberMatch(m, data.filter))
+	const values = matched
 		.map((m) => nodeValue(m.id, nodes, edges, new Set([id])))
 		.filter((v): v is number => v !== null)
-	const result = fn === 'count' ? members.length : aggregate(fn, values)
+	const result = fn === 'count' ? matched.length : aggregate(fn, values)
 
 	const toggleHint = () => {
 		if (hint.ids.size > 0) {
 			hint.clear()
 		} else {
-			hint.set(members.map((m) => m.id))
+			hint.set(matched.map((m) => m.id))
 		}
 	}
 
@@ -123,6 +128,7 @@ export function AggZoneNode({
 			}
 		: zoneBounds
 	const chipStyle: CSSProperties = {
+		fontFamily: fontStack(undefined, hint.docFont),
 		...(isFree ? { left: chipX, top: chipY } : {}),
 		...(data.textColor
 			? { color: TEXT_COLORS[data.textColor] }
@@ -208,6 +214,16 @@ export function AggZoneNode({
 							strokeLinejoin="round"
 						/>
 					</svg>
+					{data.filter?.color && (
+						<span
+							className="aggzone-fdot"
+							style={{
+								background:
+									PIECE_COLORS[data.filter.color]?.fill,
+							}}
+							title={t('色で絞り込み中')}
+						/>
+					)}
 					<span className={`aggzone-result${numCls(data, result)}`}>
 						{result === null
 							? '—'
@@ -217,7 +233,7 @@ export function AggZoneNode({
 					</span>
 					<button
 						className="aggzone-plain nodrag"
-						title="操作パネルを表示"
+						title={t('操作パネルを表示')}
 						onPointerDown={(e) => e.stopPropagation()}
 						onClick={() => updateNodeData(id, { mini: false })}
 					>
@@ -246,6 +262,15 @@ export function AggZoneNode({
 						strokeLinejoin="round"
 					/>
 				</svg>
+				{data.filter?.color && (
+					<span
+						className="aggzone-fdot"
+						style={{
+							background: PIECE_COLORS[data.filter.color]?.fill,
+						}}
+						title={t('色で絞り込み中')}
+					/>
+				)}
 				<select
 					className="aggzone-fn nodrag"
 					name="aggzone-fn"
@@ -268,28 +293,33 @@ export function AggZoneNode({
 							? ''
 							: formatNumber(result, data.digits, data.comma, data.neg)}
 				</span>
-				{fn !== 'count' && (
-					<span className="aggzone-count">n={members.length}</span>
+				{(fn !== 'count' || data.filter?.color) && (
+					<span className="aggzone-count">
+						n=
+						{data.filter?.color
+							? `${matched.length}/${members.length}`
+							: members.length}
+					</span>
 				)}
 				<button
 					className="aggzone-pos nodrag"
-					title="式と結果の表示位置（下→自由）"
+					title={t('式と結果の表示位置（下→自由）')}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={cycleLabelPos}
 				>
-					{LABEL_POS_LABEL[pos]}
+					{t(LABEL_POS_LABEL[pos])}
 				</button>
 				<button
 					className={`aggzone-plain nodrag${data.plain ? ' active' : ''}`}
-					title="枠と背景を消す（集計は続く）"
+					title={t('枠と背景を消す（集計は続く）')}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={() => updateNodeData(id, { plain: !data.plain })}
 				>
-					枠
+					{t('枠')}
 				</button>
 				<button
 					className={`aggzone-src nodrag${isHinted ? ' active' : ''}`}
-					title="集計対象を点線で表示"
+					title={t('集計対象を点線で表示')}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={toggleHint}
 				>
@@ -297,7 +327,7 @@ export function AggZoneNode({
 				</button>
 				<button
 					className="aggzone-plain nodrag"
-					title="結果だけ表示（コンパクト）"
+					title={t('結果だけ表示（コンパクト）')}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={() => updateNodeData(id, { mini: true })}
 				>
@@ -315,15 +345,15 @@ export function AggZoneNode({
 							['l', 'L'],
 							['xl', 'LL'],
 						] as const
-					).map(([k, t]) => (
+					).map(([k, sz]) => (
 						<button
 							key={k}
 							className={(data.size ?? 'm') === k ? 'active' : ''}
-							title={`文字サイズ ${t}`}
+							title={t('文字サイズ {s}', { s: sz })}
 							onPointerDown={(e) => e.stopPropagation()}
 							onClick={() => updateNodeData(id, { size: k })}
 						>
-							{t}
+							{sz}
 						</button>
 					))}
 				</div>

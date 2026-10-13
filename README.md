@@ -1,94 +1,101 @@
 # Sethera Piece（セセラピース）
 
-セルのない計算ボード。テキスト・数値の「ピース」を自由に置き、
-集計ゾーンと計算ピースで小計・消費税・合計まで組み立てるビジュアルボードです。
+日本語: [README.ja.md](README.ja.md)
 
-> セルに縛られない「囲んで数える」発想。
-> 表計算のように計算して、ホワイトボードのように動かす。
+A calculation board without cells. Place free-form text and number
+"pieces" anywhere, and build subtotals, sales tax and totals with
+aggregation zones and calc pieces — a visual board for estimates
+and summary tables.
 
-![見積書の作成例](docs/screenshot.png)
+> Count by enclosing — the spreadsheet that thinks like a whiteboard.
 
-**[Live demo](https://cuculhart.github.io/sethera-piece/)** — インストール不要・ブラウザだけで動きます
+![Estimate example](docs/screenshot.png)
 
-変更履歴は [CHANGELOG](CHANGELOG.md) を参照（最新: v0.8.0）。
+**[Live demo](https://cuculhart.github.io/sethera-piece/)** — runs in your browser, no install
 
-## 特徴
+See [CHANGELOG](CHANGELOG.md) for the release history (latest: v1.0.0).
 
-- **ピース** — テキスト / 数値 / 付箋＋数値。複数行入力、揃え・色・文字色・サイズ（S/M/L/LL）・太字・枠なし表示
-- **計算ピース** — ＋−×÷ と端数処理（切上／切捨／四捨五入）。被演算子は線で接続、未接続の口は定数入力。結果だけのコンパクト表示・枠なしにも対応
-- **集計ゾーン（Σ）** — 囲んだピースを Sum / Count / Avg / Max / Min でライブ集計。ピースの出し入れで即更新。ゾーンの結果も計算ピースの入力に使える。ゾーンに一部だけ重なって集計に効いていないピースは赤破線で警告
-- **罫線** — 表組み用の水平・垂直線と矩形枠（細／太／極太／破線／点線／一点鎖線／二重線・前面背面・塗りつぶし）。グリッド吸着で角が結合し、隣接する矩形の辺は完全に重なる。線の両端に矢印・● の端点装飾も付けられる
-- **楕円・円弧・曲線・斜線** — 「楕円」で円・楕円（w=h で正円。塗り・二重線対応）。ペイン「形状」で四角↔楕円↔円弧を切替（円弧は始角・終角を度で指定、角度の正方向はCAD式＝反時計回りとSVG式を切替可、塗りは扇形）。「曲線」はクリックで頂点を打ち込むと全点を通るスプライン。頂点はドラッグで変形、ダブルクリックで追加・削除。「斜線」は枠の対角線（╲╱）。いずれも矢印・● の端点装飾が可能で、組み合わせてフローチャートの菱形・コネクタも作れる
-- **カスタムピース（グループ）** — 矩形・テキスト・数値・計算をまとめてグループ化すると一体で移動する再利用単位になる。用紙の外に雛形として置き、コピー＆ペーストで用紙に貼る運用が可能（コピーはオリジナルと非連携）。Alt+ドラッグでメンバー単体の微調整もできる
-- **テンプレートライブラリ** — 「テンプレ」で開く雛形管理画面。選択したピースやグループを名前つきで保存し、別の文書でも「挿入」できる（文書とは別に localStorage に保管）。改名・削除・JSON 書出/読込にも対応
-- **ロック** — ペイン「ロック」でピース・計算・罫線を固定。ロック中は移動・リサイズ・削除・編集が抑止され、グループ連動や整列からも外れる。琥珀色の破線枠が目印（印刷には写らない）
-- **プロパティペイン** — ピース・罫線・曲線・計算・ゾーンの属性を右側ペインで編集。複数選択で一括変更も可能。選択物を個数と間隔指定で一括複製する「配列複製」もここから
-- **数値書式** — 数値・計算結果・集計結果に3桁区切りカンマ・小数桁数（自動/0〜3桁固定）・0のとき非表示・数値の太さ（細/標準/太）・負数表記（ー/()/▲/赤/赤ー）を設定可能
-- **用紙＆印刷** — A4/B5/A3・縦横の用紙枠。枠の範囲をキャプチャして印刷/PDF（計算の配線は印字されません）
-- **JSON 保存／読み込み** — 文書をまるごとファイル化。見積書テンプレート等の再利用に
-- **CSV/TSV** — 「CSV」で Excel との往復。取込は範囲コピーの貼り付け／ファイル読込（UTF-8・UTF-16・SJIS・EUC-JP 自動判定）、数値列は数値ピースになるので取り込んだ瞬間に集計対象。書出は配置どおりの行列＋計算結果値で TSV コピー or UTF-8 BOM の CSV 保存
-- **Undo / Redo** — Ctrl+Z / Ctrl+Shift+Z（100ステップ）
-- **線編集モード** — 罫線だけを最前面にして確実に掴める
-- **スナップ＆ガイド** — ドラッグ・リサイズ時に他ノードの端点・中点・中心、用紙の端・中央に吸着し、ガイド線を表示。ドラッグ中は座標、リサイズ中は幅×高さをHUDで読み上げる（いずれも印刷には写らない）
-- **設定** — 「⚙ 設定」でツールバー色の変更とテーマ（標準／Quiet／ダーク）を切替。用紙はタグの「枠」で透過点線枠モードにもできる
-- **完全ローカル** — データはブラウザの localStorage とJSONファイルのみ。外部送信なし
+## Features
 
-## 動かし方
+- **Pieces** — text / number / sticky-note + number. Multi-line input, alignment, fill & text colors, sizes (S/M/L/LL), bold, borderless display
+- **Calc pieces** — ＋−×÷ with rounding (ceil / floor / round). Operands connect by wires; unconnected ports take constants. Compact result-only and frameless display
+- **Aggregation zones (Σ)** — live-aggregate enclosed pieces with Sum / Count / Avg / Max / Min. Updates instantly as pieces move in and out. Zone results feed calc pieces. Pieces partially overlapping a zone are flagged with a red dashed warning. The pane's "Filter" restricts aggregation to one piece color — SumIf/CountIf style category totals across the 8 piece colors
+- **Lines** — horizontal/vertical rules and rectangle frames for tables (thin / bold / extra bold / dashed / dotted / dash-dot / double, front/back, fill). Grid snapping makes adjacent rect edges overlap exactly. Arrow and ● end caps on both ends
+- **Ellipse, arc, curve, diagonal** — "Ellipse" draws circles and ellipses (w=h for a perfect circle, fill and double-line supported). The pane's "Shape" toggles rect ↔ ellipse ↔ arc (arcs take start/end angles in degrees; direction is switchable between CAD-style CCW and SVG-style; fill renders a sector). "Curve" is a click-vertex spline through all points; drag vertices to deform, double-click to add/remove. "Diagonal" is a frame diagonal (╲╱). All support arrow/● caps — compose them into flowchart diamonds and connectors
+- **Custom pieces (groups)** — group rects, text, numbers and calcs into a reusable unit that moves as one. Keep templates off-paper and copy & paste them onto the sheet (copies are independent). Alt+drag adjusts individual members
+- **Template library** — the "Tpls" modal stores named selections; "Insert" places them in other documents (kept in localStorage, separate from documents). Rename, delete, and JSON export/import supported
+- **Lock** — pin pieces, calcs and lines from the pane. Locked items cannot move, resize, be deleted or edited, and are excluded from group motion and alignment (amber dashed frame; never printed)
+- **Property pane** — edit piece, line, curve, calc and zone attributes on the right; multi-select applies changes in batch. "Array" duplicates a selection by count and dx/dy offsets
+- **Number formats** — thousands separators, fixed decimals (auto/0–3), hide-zero, numeric weight (thin/normal/bold), and negative styles (−, (), ▲, red, red−) on numbers, calc results and aggregates
+- **Fonts** — set the document-wide font in Settings (Gothic = Noto Sans JP / Mincho = Shippori Mincho / BIZ UDP Gothic / monospace / custom font name). Per-piece overrides, applied in batch via multi-select. All bundled fonts work offline
+- **Multilingual UI** — switch the UI language between Japanese and English in Settings (auto-detects from the browser language; non-Japanese falls back to English)
+- **Paper & print** — A4/B5/A3 portrait/landscape frame; the frame is captured for print/PDF (wiring is not printed)
+- **JSON save/load** — export the whole document as a file, handy for reusing estimate templates
+- **CSV/TSV** — the "CSV" panel round-trips with Excel. Import pastes a copied range or reads a file (auto-detects UTF-8, UTF-16, Shift_JIS, EUC-JP); numeric columns become number pieces and are instantly aggregatable. Export rebuilds rows/columns from the layout plus computed values — TSV copy or UTF-8-BOM CSV save
+- **Undo / Redo** — Ctrl+Z / Ctrl+Shift+Z (100 steps)
+- **Line-edit mode** — brings only lines to the front so they are easy to grab
+- **Snap & guides** — while dragging/resizing, pieces snap to edges, midpoints and centers of other nodes and the paper frame, showing guide lines. A HUD reads out coordinates while dragging and w×h while resizing (neither is printed)
+- **Settings** — "⚙ Settings" changes toolbar color and theme (standard / Quiet / dark). The paper can also show as a transparent dashed frame
+- **Fully local** — data lives only in localStorage and JSON files; nothing is sent anywhere
+
+## Getting started
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173/sethera-piece/
-npm run build    # 本番ビルド → dist/
+npm run build    # production build → dist/
 npm run typecheck
 ```
 
-React 19 + TypeScript + Vite + [@xyflow/react](https://github.com/xyflow/xyflow) (MIT) + html-to-image。
+React 19 + TypeScript + Vite + [@xyflow/react](https://github.com/xyflow/xyflow) (MIT) + html-to-image.
 
-## 基本的な使い方
+## Basic usage
 
-| やりたいこと | 操作 |
+| Goal | How |
 |---|---|
-| ピースを追加 | ツールレールの「テキスト」「数値」「付箋＋数値」 |
-| 編集 | ダブルクリック（Enter=改行、Ctrl+Enter=確定、外側クリックでも確定）、または選択して右のプロパティペインで編集 |
-| 属性の一括変更 | 複数ピースを選択 → プロパティペインで色・揃え・サイズ・太字などをまとめて適用 |
-| 揃える | 複数選択 → プロパティペイン「整列」で左/右/上/下・幅・高さを揃える |
-| サイズ変更 | エッジをドラッグ、またはペイン「サイズ」で幅/高さを −/＋（±12）・直接入力 |
-| 同時リサイズ | 複数選択してエッジをドラッグ → 同じ辺が連動（罫線の始端/終端も連動。縦⇔横の転換も一括） |
-| セルに合わせる | 矩形罫線の内側にあるピースを選択 → ペイン「矩形: フィット」で矩形と同じ位置・サイズに |
-| 計算 | 「計算」→ ピース右端の ● から線を引き、calc 左側の A/B に接続。未接続の口は定数入力欄 |
-| 小計 | ピースを選択して「Σ 集計ゾーン」、または「Σ」ボタン→ドラッグで範囲を指定 |
-| 税・合計 | ゾーン右端の ● から計算ピースへ接続（×0.1 切捨 = 消費税、税抜＋税 = 税込合計） |
-| 罫線 | 「罫線」→ リサイズで水平/垂直。「矩形」で4辺の枠。「線編集」ONでピースの下の線も掴める。ペインで線種（細/太/極太/破線/点線/一鎖/二重）・両端の矢印/● を設定 |
-| 円・楕円・円弧 | 「楕円」→ リサイズ（w=h で正円）。ペイン「形状」で四角↔楕円↔円弧を切替。円弧は「角度」で始角・終角を度で指定（0°=3時方向。「反時計回り」ON=CAD式／OFF=SVG式） |
-| 曲線 | 「曲線」→ クリックで頂点（3点以上）→ 同じ点を再クリック or Enter で確定（Esc=キャンセル）。選択中は頂点をドラッグで変形、頂点ダブルクリック=削除、線上ダブルクリック=頂点追加 |
-| 斜線 | 「斜線」→ 枠の対角線（╲）。ペイン「斜線」で ╲╱ 切替、「なし」で通常線に戻る。矢印・● 可（フローチャートのコネクタにも） |
-| 配列複製 | 選択 → ペイン「配列複製」で個数と dx/dy 間隔を指定して「複製」（明細行などの整列複製） |
-| 微移動 | 矢印キーでグリッド1歩（12px）、Shift+矢印で1px（グループは全体移動、ロック品は除外） |
-| ロック | 選択 → ペイン「ロック」。ロック中は移動・編集・削除不可。「解除」で戻る |
-| 複製 | Ctrl+C / Ctrl+V / Ctrl+D（グループのメンバーをコピーするとグループ全体が複製される） |
-| グループ化／解除 | 対象を複数選択 → ペイン「グループ」で「まとめる」。Alt+ドラッグでメンバーの個別移動 |
-| テンプレート | 選択 →「テンプレ」→名前を付けて保存。一覧から「挿入」で画面中央に配置。書出/読込でJSONの受け渡しも可能 |
-| 戻す／やり直し | Ctrl+Z / Ctrl+Shift+Z（またはCtrl+Y） |
-| 印刷 | 「印刷」または Ctrl+P（用紙枠の範囲が出力。用紙なしの場合は全体） |
-| 保存／読込 | 「保存」でJSONダウンロード、「開く」で復元 |
-| CSV 取込 | 「CSV」→「取込」で Excel の範囲コピーを貼り付け／ファイル選択。列型（テキスト/数値/無視）とヘッダー行を確認して取込 |
-| CSV 書出 | 「CSV」→「書出」で選択物/全文書を TSV コピー（Excelへ直接貼付）or CSV 保存（計算は結果値） |
+| Add a piece | "Text", "Number" or "Sticky+Num" on the toolbar |
+| Edit | Double-click (Enter = newline, Ctrl+Enter or click outside = apply), or select and edit in the property pane |
+| Batch attributes | Select multiple pieces → apply color, alignment, size, bold etc. in the pane |
+| Align | Multi-select → pane "Align" for left/right/top/bottom, width and height |
+| Resize | Drag an edge, or use pane "Size" −/＋ (±12) or type a value |
+| Group resize | Multi-select and drag an edge — the same edge follows on all (line endpoints follow too; vertical⇔horizontal flips together) |
+| Fit to cell | Select pieces inside a rectangle line → pane "Rect: Fit" matches position and size |
+| Calculate | "Calc" → drag a wire from the ● on a piece's right edge to A/B on the calc's left; unconnected ports take constants |
+| Subtotal | Select pieces and hit "Σ Agg zone", or press "Σ" and drag a range |
+| Tax & total | Wire from a zone's right ● to a calc piece (×0.1 floor = sales tax; net + tax = gross) |
+| Color-conditional aggregation | Multi-select target pieces and give them one color → select the zone → pick that color in pane "Filter" (only pieces of that color are aggregated) |
+| Lines | "Line" → resize for horizontal/vertical. "Rect" for a 4-sided frame. Turn on "Lines" mode to grab lines under pieces. Pane sets line style (thin/bold/xbold/dash/dot/chain/double) and arrow/● caps |
+| Circle, ellipse, arc | "Ellipse" → resize (w=h for a circle). Pane "Shape" switches rect ↔ ellipse ↔ arc; arcs take start/end angles in degrees (0° = 3 o'clock; "CCW" on = CAD-style, off = SVG-style) |
+| Curve | "Curve" → click vertices (3+) → re-click the last point or Enter to finish (Esc = cancel). While selected, drag vertices to deform; double-click a vertex to delete; double-click the line to add one |
+| Diagonal | "Diag" → frame diagonal (╲). Pane "Diag" toggles ╲╱; "None" returns to a normal line. Arrow/● caps allowed (works as a flowchart connector) |
+| Array duplicate | Select → pane "Array" sets count and dx/dy offsets → "Dup" (repeat detail rows, etc.) |
+| Nudge | Arrow keys move one grid step (12px); Shift+arrow = 1px (groups move together; locked items are excluded) |
+| Lock | Select → pane "Lock". Locked items cannot move, be edited or deleted; "Release" restores |
+| Duplicate | Ctrl+C / Ctrl+V / Ctrl+D (copying a group member duplicates the whole group) |
+| Group / ungroup | Multi-select → pane "Group" → "Group". Alt+drag moves a member individually |
+| Templates | Select → "Tpls" → name and save. "Insert" from the list places it at the viewport center; JSON export/import is also available |
+| Undo / redo | Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) |
+| Print | "Print" or Ctrl+P (prints the paper frame; the whole board if no paper) |
+| Save / load | "Save" downloads JSON; "Open" restores |
+| CSV import | "CSV" → "Import": paste a range copied from Excel or choose a file; check column types (text/number/ignore) and the header row, then import |
+| CSV export | "CSV" → "Export": copy TSV from the selection/whole document (paste directly into Excel) or save CSV (calcs export their results) |
 
-### 見積書ワークフローの例
+### Estimate workflow example
 
 ```text
-数量 × 単価 → 明細金額 (calc)
-明細行をゾーンで囲む → 税抜小計 (Σ)
-ゾーン × 0.1（切捨）→ 消費税 (calc)
-小計 + 消費税 → 合計 (calc)
+qty × unit price → line amount (calc)
+enclose line rows in a zone → net subtotal (Σ)
+zone × 0.1 (floor) → sales tax (calc)
+subtotal + tax → total (calc)
 ```
 
-罫線で表の枠を引き、ピースをセル位置に置き、
-計算ピースは「コンパクト＋枠なし」で金額欄に収める、という組み方です。
+Draw the table frame with lines, drop pieces into the cells, and
+keep calc pieces "compact + frameless" to sit inside amount columns.
 
-## 名前について
+## About the name
 
-「Sethera（囲んで数える）」+「Piece（盤上の駒）」。通称 **セセラ**。
+"Sethera" (count by enclosing) + "Piece" (a board piece).
+Commonly called **Sesera** (セセラ).
 
 ## License
 

@@ -10,6 +10,7 @@ import {
 	type ColType,
 	type ParsedTable,
 } from './lib/csv'
+import { useT } from './i18n'
 
 const COL_TYPES: [ColType, string][] = [
 	['text', 'テキスト'],
@@ -40,6 +41,7 @@ export function CsvPane({
 	onSaveCsv: (scope: 'sel' | 'all') => number
 	onClose: () => void
 }) {
+	const t = useT()
 	const [tab, setTab] = useState<'in' | 'out'>('in')
 	const [raw, setRaw] = useState('')
 	const [enc, setEnc] = useState('')
@@ -100,7 +102,9 @@ export function CsvPane({
 		if (!f) return
 		if (f.size > CSV_LIMITS.fileBytes) {
 			alert(
-				`ファイルが大きすぎます（${CSV_LIMITS.fileBytes / 1024 / 1024}MB まで）`
+				t('ファイルが大きすぎます（{mb}MB まで）', {
+					mb: CSV_LIMITS.fileBytes / 1024 / 1024,
+				})
 			)
 			return
 		}
@@ -127,36 +131,37 @@ export function CsvPane({
 					className={tab === 'in' ? 'active' : ''}
 					onClick={() => setTab('in')}
 				>
-					取込
+					{t('取込')}
 				</button>
 				<button
 					className={tab === 'out' ? 'active' : ''}
 					onClick={() => setTab('out')}
 				>
-					書出
+					{t('書出')}
 				</button>
 			</div>
 			{tab === 'in' ? (
 				<>
 					<p className="modal-sub">
-						Excel の範囲コピー（TSV）を貼り付けるか、CSV ファイルを
-						選択してください（UTF-8 / UTF-16 / Shift_JIS / EUC-JP 自動判定）
+						{t(
+							'Excel の範囲コピー（TSV）を貼り付けるか、CSV ファイルを選択してください（UTF-8 / UTF-16 / Shift_JIS / EUC-JP 自動判定）'
+						)}
 					</p>
 					<textarea
 						className="csv-src"
 						name="csv-src"
-						placeholder={'ここに貼り付け（例: 品名<TAB>数量<TAB>単価）'}
+						placeholder={t('ここに貼り付け（例: 品名<TAB>数量<TAB>単価）')}
 						value={raw}
 						onChange={(e) => setRaw(e.target.value)}
 						rows={5}
 					/>
 					<div className="csv-src-actions">
 						<button onClick={() => fileRef.current?.click()}>
-							CSV ファイルを選択…
+							{t('CSV ファイルを選択…')}
 						</button>
 						{enc && (
 							<span className="insp-hint">
-								文字コード: {enc}
+								{t('文字コード: {e}', { e: enc })}
 							</span>
 						)}
 						<input
@@ -180,23 +185,26 @@ export function CsvPane({
 											setHeaderOv(e.target.checked)
 										}
 									/>
-									1行目はヘッダー（取り込まない）
+									{t('1行目はヘッダー（取り込まない）')}
 								</label>
 								<span className="insp-hint">
-									{dataRows.length} 行 × {types.length} 列（
-									{pieceCount} ピース）
+									{t('{r} 行 × {c} 列（{p} ピース）', {
+										r: dataRows.length,
+										c: types.length,
+										p: pieceCount,
+									})}
 								</span>
 							</div>
 							<div className="csv-preview-wrap">
 								<table className="csv-preview">
 									<thead>
 										<tr>
-											{types.map((t, ci) => (
+											{types.map((ct, ci) => (
 												<th key={ci}>
 													<select
 														className="insp-select"
 														name={`csv-col-${ci}`}
-														value={t}
+														value={ct}
 														disabled={
 															ci >= CSV_LIMITS.cols
 														}
@@ -216,7 +224,7 @@ export function CsvPane({
 																	key={v}
 																	value={v}
 																>
-																	{l}
+																	{t(l)}
 																</option>
 															)
 														)}
@@ -240,26 +248,28 @@ export function CsvPane({
 							</div>
 							{dataRows.length > previewRows.length && (
 								<p className="insp-hint">
-									…他 {dataRows.length - previewRows.length}{' '}
-									行
+									{t('…他 {n} 行', {
+										n: dataRows.length - previewRows.length,
+									})}
 								</p>
 							)}
 							{(truncated || tooManyCols) && (
 								<p className="csv-warn">
-									{tooManyCols && (
-										<>
-											{CSV_LIMITS.cols}{' '}
-											列を超える列は「無視」として扱います。
-										</>
-									)}
+									{tooManyCols &&
+										t(
+											'{c} 列を超える列は「無視」として扱います。',
+											{ c: CSV_LIMITS.cols }
+										)}
 									{truncated &&
-										`上限のため先頭 ${importRows.length} 行まで取り込みます。`}
+										t('上限のため先頭 {n} 行まで取り込みます。', {
+											n: importRows.length,
+										})}
 								</p>
 							)}
 						</>
 					)}
 					<div className="modal-actions">
-						<button onClick={onClose}>閉じる</button>
+						<button onClick={onClose}>{t('閉じる')}</button>
 						<button
 							disabled={!importRows.length || usedCols === 0}
 							onClick={() => {
@@ -267,15 +277,16 @@ export function CsvPane({
 								onClose()
 							}}
 						>
-							{importRows.length} 行を取り込む
+							{t('{n} 行を取り込む', { n: importRows.length })}
 						</button>
 					</div>
 				</>
 			) : (
 				<>
 					<p className="modal-sub">
-						ピースの配置どおりに行列を再構成して書き出します
-						（計算ピースは計算結果の値。罫線・ゾーンは除外）
+						{t(
+							'ピースの配置どおりに行列を再構成して書き出します（計算ピースは計算結果の値。罫線・ゾーンは除外）'
+						)}
 					</p>
 					<div className="csv-opts">
 						<label>
@@ -286,7 +297,7 @@ export function CsvPane({
 								disabled={selCount === 0}
 								onChange={() => setScope('sel')}
 							/>
-							選択中のピース（{selCount}）
+							{t('選択中のピース（{n}）', { n: selCount })}
 						</label>
 						<label>
 							<input
@@ -295,31 +306,36 @@ export function CsvPane({
 								checked={scope === 'all'}
 								onChange={() => setScope('all')}
 							/>
-							文書全体（{totalCount}）
+							{t('文書全体（{n}）', { n: totalCount })}
 						</label>
 					</div>
 					<div className="modal-actions">
 						{outMsg && (
 							<span className="insp-hint">{outMsg}</span>
 						)}
-						<button onClick={onClose}>閉じる</button>
+						<button onClick={onClose}>{t('閉じる')}</button>
 						<button
 							onClick={() =>
 								setOutMsg(
-									`${onCopyTsv(scope)} 行をクリップボードにコピーしました（Excel にそのまま貼り付けられます）`
+									t(
+										'{n} 行をクリップボードにコピーしました（Excel にそのまま貼り付けられます）',
+										{ n: onCopyTsv(scope) }
+									)
 								)
 							}
 						>
-							TSV をコピー
+							{t('TSV をコピー')}
 						</button>
 						<button
 							onClick={() =>
 								setOutMsg(
-									`${onSaveCsv(scope)} 行を CSV で保存しました`
+									t('{n} 行を CSV で保存しました', {
+										n: onSaveCsv(scope),
+									})
 								)
 							}
 						>
-							CSV で保存
+							{t('CSV で保存')}
 						</button>
 					</div>
 				</>

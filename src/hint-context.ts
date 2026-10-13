@@ -11,6 +11,8 @@ export const HintContext = createContext<{
 	dark: boolean
 	/** 用紙の矩形（paper.on=false のとき null） */
 	paperRect: Bounds | null
+	/** 文書既定フォント（FONTS キー名 or カスタム書体名） */
+	docFont?: string
 	set: (ids: string[]) => void
 	clear: () => void
 }>({

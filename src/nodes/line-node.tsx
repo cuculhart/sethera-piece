@@ -2,6 +2,7 @@ import { useContext } from 'react'
 import { NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react'
 import { LINE_COLORS, PIECE_COLORS } from './vobject-node'
 import { HintContext } from '../hint-context'
+import { useT } from '../i18n'
 import type { LineCap, LineNodeType, LineWeight } from './types'
 
 const GRID = 12
@@ -93,6 +94,7 @@ function Caps({
 }
 
 export function LineNode({ id, data, selected, width, height }: NodeProps<LineNodeType>) {
+	const t = useT()
 	const { updateNode } = useReactFlow()
 	const gmem = useContext(HintContext).group.has(id)
 	const w = width ?? 0
@@ -387,7 +389,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 			</svg>
 			{selected && !data.locked && (
 				<div className="linenode-tools nodrag">
-					{WEIGHTS.map(([k, t]) => (
+					{WEIGHTS.map(([k, lbl]) => (
 						<button
 							key={k}
 							className={data.w === k ? 'active' : ''}
@@ -396,12 +398,12 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 								updateNode(id, { data: { ...data, w: k } })
 							}
 						>
-							{t}
+							{t(lbl)}
 						</button>
 					))}
 					<button
 						className={data.front ? 'active' : ''}
-						title="前面に表示（ピースの上に線を描く）"
+						title={t('前面に表示（ピースの上に線を描く）')}
 						onPointerDown={(e) => e.stopPropagation()}
 						onClick={() =>
 							updateNode(id, {
@@ -410,7 +412,7 @@ export function LineNode({ id, data, selected, width, height }: NodeProps<LineNo
 							})
 						}
 					>
-						前面
+						{t('前面')}
 					</button>
 				</div>
 			)}

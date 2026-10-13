@@ -9,6 +9,7 @@ import {
 	type NodeProps,
 } from '@xyflow/react'
 import { formatNumber, onDarkCanvas } from '../lib/aggregate'
+import { fontStack } from '../lib/fonts'
 import {
 	CALC_OPS,
 	CALC_OP_LABEL,
@@ -20,6 +21,7 @@ import {
 	operandSource,
 } from '../lib/calc'
 import { HintContext } from '../hint-context'
+import { useT } from '../i18n'
 import { TEXT_COLORS } from './vobject-node'
 import type { BoardNode, CalcNodeType, CalcOp, RoundMode } from './types'
 
@@ -39,22 +41,26 @@ export function CalcNode({
 	const gmem = hint.group.has(id)
 	const nodes = useNodes<BoardNode>()
 	const edges = useEdges()
+	const t = useT()
 	const value = nodeValue(id, nodes, edges)
 	const aSrc = operandSource(edges, id, 'a')
 	const bSrc = operandSource(edges, id, 'b')
 	const cls = `calcnode align-${data.align ?? 'c'} size-${data.size ?? 'm'}${data.plain ? ' plain' : ''}${hinted ? ' hinted' : ''}${zpart ? ' zpart' : ''}${gmem ? ' gmember' : ''}${data.locked ? ' locked' : ''}`
 	// ダーク盤面: 枠なし計算の自動文字色は用紙外だと読めないため明色化
-	const style = data.textColor
-		? { color: TEXT_COLORS[data.textColor] }
-		: data.plain &&
-			  onDarkCanvas(hint.dark, hint.paperRect, {
-				  minX: positionAbsoluteX,
-				  minY: positionAbsoluteY,
-				  maxX: positionAbsoluteX + (width ?? 120),
-				  maxY: positionAbsoluteY + (height ?? 40),
-			  })
-			? { color: '#e6e3da' }
-			: undefined
+	const style = {
+		fontFamily: fontStack(undefined, hint.docFont),
+		...(data.textColor
+			? { color: TEXT_COLORS[data.textColor] }
+			: data.plain &&
+				  onDarkCanvas(hint.dark, hint.paperRect, {
+					  minX: positionAbsoluteX,
+					  minY: positionAbsoluteY,
+					  maxX: positionAbsoluteX + (width ?? 120),
+					  maxY: positionAbsoluteY + (height ?? 40),
+				  })
+				? { color: '#e6e3da' }
+				: {}),
+	}
 
 	const tools = selected && !data.locked ? (
 		<div className="calc-tools nodrag">
@@ -64,24 +70,24 @@ export function CalcNode({
 					['c', '中'],
 					['r', '右'],
 				] as const
-			).map(([k, t]) => (
+			).map(([k, al]) => (
 				<button
 					key={k}
 					className={(data.align ?? 'c') === k ? 'active' : ''}
-					title={`結果を${t}揃え`}
+					title={t('結果を{a}揃え', { a: t(al) })}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={() => updateNodeData(id, { align: k })}
 				>
-					{t}
+					{t(al)}
 				</button>
 			))}
 			<button
 				className={data.plain ? 'active' : ''}
-				title="枠・背景を消す"
+				title={t('枠・背景を消す')}
 				onPointerDown={(e) => e.stopPropagation()}
 				onClick={() => updateNodeData(id, { plain: !data.plain })}
 			>
-				枠なし
+				{t('枠なし')}
 			</button>
 		</div>
 	) : null
@@ -111,7 +117,7 @@ export function CalcNode({
 				</span>
 				<button
 					className="calc-mini-btn nodrag"
-					title="式を表示"
+					title={t('式を表示')}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={() => updateNodeData(id, { mini: false })}
 				>
@@ -186,7 +192,7 @@ export function CalcNode({
 				</span>
 				<button
 					className="calc-mini-btn nodrag"
-					title="結果だけ表示（コンパクト）"
+					title={t('結果だけ表示（コンパクト）')}
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={() => updateNodeData(id, { mini: true })}
 				>
@@ -195,7 +201,7 @@ export function CalcNode({
 				<select
 					className="calc-round nodrag"
 					name="calc-round"
-					title="丸め"
+					title={t('丸め')}
 					value={data.round}
 					onPointerDown={(e) => e.stopPropagation()}
 					onChange={(e) =>
@@ -204,7 +210,7 @@ export function CalcNode({
 				>
 					{ROUND_MODES.map((r) => (
 						<option key={r} value={r}>
-							{ROUND_LABEL[r]}
+							{t(ROUND_LABEL[r])}
 						</option>
 					))}
 				</select>
@@ -229,6 +235,7 @@ function Operand({
 	edges: ReturnType<typeof useEdges>
 	onConst: (v: number | null) => void
 }) {
+	const t = useT()
 	if (srcId === null) {
 		return <ConstInput tag={tag} value={constVal} onCommit={onConst} />
 	}
@@ -243,10 +250,10 @@ function Operand({
 				: formatNumber(v, fmt.digits, fmt.comma, fmt.neg)
 	const name =
 		src?.type === 'vobject'
-			? src.data.label || '値'
+			? src.data.label || t('値')
 			: src?.type === 'zone'
-				? 'Σゾーン'
-				: '計算'
+				? t('Σゾーン')
+				: t('計算')
 	return (
 		<span className="calc-operand" title={`${name}: ${disp}`}>
 			<span className="calc-operand-tag">{tag}</span>
@@ -265,6 +272,7 @@ function ConstInput({
 	value: number | null
 	onCommit: (v: number | null) => void
 }) {
+	const t = useT()
 	const [draft, setDraft] = useState(value === null ? '' : String(value))
 	useEffect(() => {
 		setDraft(value === null ? '' : String(value))
@@ -281,7 +289,7 @@ function ConstInput({
 				className="nodrag"
 				name="calc-const"
 				value={draft}
-				placeholder="定数"
+				placeholder={t('定数')}
 				onPointerDown={(e) => e.stopPropagation()}
 				onChange={(e) => setDraft(e.currentTarget.value)}
 				onBlur={commit}

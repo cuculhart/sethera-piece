@@ -53,6 +53,17 @@ export function nodeBounds(n: BoardNode): Bounds {
 	}
 }
 
+/** ゾーン条件への適合（filter 省略=全一致。条件ありは vobject のみ対象。
+ *  calc は色を持たないため SumIf 的に対象外） */
+export function memberMatch(
+	n: BoardNode,
+	f?: { color?: string }
+): boolean {
+	if (!f?.color) return true
+	if (n.type !== 'vobject') return false
+	return (n.data.color ?? 'yellow') === f.color
+}
+
 /** ゾーン（または任意の矩形）に完全包含される値ピース（vobject / calc）を返す */
 export function zoneMembers(bounds: Bounds, nodes: BoardNode[]): BoardNode[] {
 	return nodes.filter((n) => {
@@ -142,7 +153,9 @@ export function nodeValue(
 			maxX: n.position.x + (n.measured?.width ?? n.width ?? 0),
 			maxY: n.position.y + (n.measured?.height ?? n.height ?? 0),
 		}
-		const members = zoneMembers(bounds, nodes).filter((m) => m.id !== id)
+		const members = zoneMembers(bounds, nodes).filter(
+			(m) => m.id !== id && memberMatch(m, n.data.filter)
+		)
 		if (n.data.fn === 'count') return members.length
 		const values = members
 			.map((m) => nodeValue(m.id, nodes, edges, new Set(visited)))

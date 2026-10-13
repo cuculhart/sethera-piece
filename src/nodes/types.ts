@@ -31,6 +31,8 @@ export type VObjectData = {
 	groupId?: string
 	/** ロック。ドラッグ・リサイズ・削除・属性編集を抑止 */
 	locked?: boolean
+	/** フォント（FONTS キー名 or カスタム書体名）。省略=文書既定 */
+	font?: string
 } & NumFmt
 
 export type ZoneData = {
@@ -41,6 +43,11 @@ export type ZoneData = {
 	chipPos?: { x: number; y: number }
 	size?: 's' | 'm' | 'l' | 'xl'
 	textColor?: string
+	/** 条件付き集計。省略=全メンバー対象（従来どおり） */
+	filter?: {
+		/** ピース色（PIECE_COLORS のキー名。'none' は条件に使えない） */
+		color?: string
+	}
 } & NumFmt
 
 export type CalcData = {

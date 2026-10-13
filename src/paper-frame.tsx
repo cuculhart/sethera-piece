@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { ViewportPortal, useReactFlow } from '@xyflow/react'
+import { useT } from './i18n'
 
 const MM = 96 / 25.4
 const GRID = 12
@@ -20,6 +21,10 @@ export type PaperCfg = {
 	landscape: boolean
 	placed?: boolean
 	ghost?: boolean
+	/** 文書既定フォント（FONTS キー名 or カスタム書体名）。
+	 *  用紙設定ではなく文書設定としてここに載せる（undo/保存/JSONの
+	 *  全経路をこのオブジェクトが通るため） */
+	font?: string
 }
 
 export const DEFAULT_PAPER: PaperCfg = {
@@ -43,6 +48,7 @@ export function PaperFrame({
 	onChange: (next: PaperCfg) => void
 }) {
 	const rf = useReactFlow()
+	const t = useT()
 	const drag = useRef<{ dx: number; dy: number } | null>(null)
 	const { w, h } = paperDims(cfg)
 
@@ -54,7 +60,7 @@ export function PaperFrame({
 			>
 				<div
 					className="paper-tag"
-					title="用紙（掴んで移動。印刷はこの枠の範囲）"
+					title={t('用紙（掴んで移動。印刷はこの枠の範囲）')}
 					onPointerDown={(e) => {
 						e.stopPropagation()
 						e.currentTarget.setPointerCapture(e.pointerId)
@@ -87,7 +93,7 @@ export function PaperFrame({
 						})
 					}}
 				>
-					<span className="paper-tag-name">用紙</span>
+					<span className="paper-tag-name">{t('用紙')}</span>
 					<select
 						name="paper-size"
 						value={cfg.size}
@@ -106,15 +112,17 @@ export function PaperFrame({
 						onPointerDown={(e) => e.stopPropagation()}
 						onClick={() => onChange({ ...cfg, landscape: !cfg.landscape })}
 					>
-						{cfg.landscape ? '横' : '縦'}
+						{cfg.landscape ? t('横') : t('縦')}
 					</button>
 					<button
 						className={cfg.ghost ? 'active' : ''}
-						title="用紙の塗りを消して点線枠だけにする（明るさ対策。印刷範囲は変わりません）"
+						title={t(
+							'用紙の塗りを消して点線枠だけにする（明るさ対策。印刷範囲は変わりません）'
+						)}
 						onPointerDown={(e) => e.stopPropagation()}
 						onClick={() => onChange({ ...cfg, ghost: !cfg.ghost })}
 					>
-						枠
+						{t('枠')}
 					</button>
 				</div>
 			</div>

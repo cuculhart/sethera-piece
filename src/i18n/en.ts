@@ -1,0 +1,301 @@
+/** English dictionary. Keys are the Japanese source strings.
+ *  Missing keys fall back to the key itself (= Japanese). */
+const dict: Record<string, string> = {
+	// ── ツールバー ────────────────────────────────
+	'付箋＋数値': 'Sticky+Num',
+	'付箋＋数値ピース': 'Sticky note + number piece',
+	'テキストピース': 'Text piece',
+	'数値ピース': 'Number piece',
+	'四則演算ピース（ピースの右の●から線を引いて繋ぐ）':
+		'Arithmetic piece (drag a wire from the ● on its right edge to connect)',
+	'罫線（横長=水平線/縦長=垂直線。線は枠の上辺・左辺に引かれる。選択中に線種変更）':
+		'Line (wide = horizontal / tall = vertical; drawn on the top/left edge. Change style while selected)',
+	'矩形罫線（4辺の枠。グリッド吸着で隣接矩形の辺が完全に重なる）':
+		'Rectangle frame (4 borders; grid snapping makes adjacent edges overlap exactly)',
+	'楕円（w=h で正円。塗り・線種・二重線に対応）':
+		'Ellipse (w=h makes a circle; supports fill, line style, double line)',
+	'斜線（枠の対角線。↗向きはペインで切替。端点装飾・線種・二重線に対応）':
+		'Diagonal line (frame diagonal; switch to ↗ in the pane; caps, style and double supported)',
+	'曲線を描画（クリックで頂点を打ち込み、同じ点の再クリック or Enter で確定。全点を通るスプライン）':
+		'Draw a curve (click vertices; re-click last point or press Enter to finish. Spline through all points)',
+	'線編集モード: ONの間は罫線だけを最前面で操作可能（他のピースはクリック不可・半透明）':
+		'Line-edit mode: while ON only lines are editable on top (other pieces are unclickable and dimmed)',
+	'選択中のピースを囲む集計ゾーン': 'Aggregate zone enclosing the selection',
+	'集計ゾーンをドラッグで描画（対角2点を指定。Esc/クリックでキャンセル）':
+		'Draw an aggregation zone by dragging (pick 2 corners; Esc/click to cancel)',
+	'グリッド表示': 'Show grid',
+	'吸着: グリッド吸着＋他ピースの端点/中点/中心への吸着（ガイド線表示）':
+		'Snap: grid snap + snap to endpoints/midpoints/centers of other pieces (shows guide lines)',
+	'用紙枠の表示（A4/B5/A3・縦横切替）': 'Show paper frame (A4/B5/A3, portrait/landscape)',
+	'用紙枠（または全体）の範囲を印刷': 'Print the paper frame (or the whole board)',
+	'JSONファイルに保存': 'Save to a JSON file',
+	'JSONファイルを開く': 'Open a JSON file',
+	'CSV/TSV の取込・書出（Excel のコピー貼り付け・ファイル読込・計算結果の引き渡し）':
+		'CSV/TSV import & export (paste from Excel, file import, hand off computed values)',
+	'テンプレートライブラリ（選択を雛形として保存・呼び出し）':
+		'Template library (save the selection as a reusable block)',
+	'元に戻す (Ctrl+Z)': 'Undo (Ctrl+Z)',
+	'やり直し (Ctrl+Shift+Z / Ctrl+Y)': 'Redo (Ctrl+Shift+Z / Ctrl+Y)',
+	'このアプリについて': 'About this app',
+	'すべてのピース・罫線・接続を削除': 'Delete all pieces, lines and connections',
+	'ツールバーを展開': 'Expand toolbar',
+	'ツールバーを折りたたむ': 'Collapse toolbar',
+	'テキスト': 'Text',
+	'数値': 'Number',
+	'計算': 'Calc',
+	'罫線': 'Line',
+	'矩形': 'Rect',
+	'楕円': 'Ellipse',
+	'斜線': 'Diag',
+	'曲線': 'Curve',
+	'線編集': 'Line edit',
+	'Σ 集計ゾーン': 'Σ Agg zone',
+	'グリッド': 'Grid',
+	'吸着': 'Snap',
+	'用紙': 'Paper',
+	'印刷': 'Print',
+	'保存': 'Save',
+	'開く': 'Open',
+	'テンプレ': 'Tpls',
+	'設定': 'Settings',
+	'全消去': 'Clear',
+	'戻す': 'Undo',
+	'やり直し': 'Redo',
+
+	// ── モーダル／その他画面 ──────────────────────
+	'セルではなくピースを自由に置いて計算する、ビジュアルボード。見積書や集計表を、空間にそのまま組み立てられます。':
+		'A visual board where you place free-form pieces to compute, instead of cells. Build estimates and summary tables directly in space.',
+	'閉じる': 'Close',
+	'すべて消去しますか？': 'Delete everything?',
+	'すべてのピース・罫線・計算・接続を削除します。':
+		'Deletes all pieces, lines, calculations and connections.',
+	'この操作は Ctrl+Z で元に戻せます。': 'You can undo this with Ctrl+Z.',
+	'キャンセル': 'Cancel',
+	'印刷にはツールバーの「印刷」ボタン、または Ctrl+P をご利用ください（ブラウザの印刷メニューからの直接印刷には対応していません）':
+		'Use the "Print" toolbar button or Ctrl+P (printing directly from the browser menu is not supported)',
+	'曲線: クリックで頂点（3点以上）、同じ点の再クリック or Enter で確定、Escでキャンセル':
+		'Curve: click to add vertices (3+); re-click the last point or press Enter to finish, Esc to cancel',
+	'この環境に無いフォントが使われています: {f}\n（既定フォントで表示されます）':
+		'This document uses fonts not available here: {f}\n(They will render with the default font)',
+	'Sethera の JSON ファイルとして読み込めませんでした':
+		'Could not load the file as a Sethera JSON document',
+	'テンプレートの JSON として読み込めませんでした':
+		'Could not load the file as a template JSON',
+
+	// ── 設定 ─────────────────────────────────────
+	'テーマ': 'Theme',
+	'ダーク（暗い盤面）': 'Dark (dark canvas)',
+	'Quiet（UI の明度を抑える）': 'Quiet (softer UI contrast)',
+	'ツールバーの色': 'Toolbar color',
+	'言語': 'Language',
+	'言語を切り替え': 'Switch language',
+	'自動（ブラウザ）': 'Auto (browser)',
+	'文書のフォント': 'Document font',
+
+	// ── テンプレート ─────────────────────────────
+	'テンプレート': 'Templates',
+	'選択中の {n} ピースを雛形として保存します':
+		'Save the {n} selected pieces as a template',
+	'雛形の呼び出し・管理（文書とは別に保管）。保存するには複数ピースを選んでから開いてください':
+		'Recall and manage templates (stored separately from documents). To save, select multiple pieces before opening',
+	'新規テンプレート名': 'New template name',
+	'選択×{n} を保存': 'Save selection ×{n}',
+	'まだテンプレートがありません。グループ化した明細行や罫線セットを登録すると、他の文書でも呼び出せます':
+		'No templates yet. Register grouped detail rows or line sets to reuse them in other documents',
+	'クリックで改名': 'Click to rename',
+	'{n} ピース': '{n} pieces',
+	'挿入': 'Insert',
+	'JSON ファイルに書き出し': 'Export to a JSON file',
+	'書出': 'Export',
+	'削除': 'Delete',
+	'挿入・改名・書出・削除は選択を解除してから開いてください':
+		'Deselect everything and reopen to insert, rename, export or delete',
+	'JSON から読み込み': 'Import from JSON',
+	'無題': 'Untitled',
+	'読み込みテンプレート': 'Imported template',
+
+	// ── 右ペイン（共通） ──────────────────────────
+	'ピース': 'Piece',
+	'集計ゾーン': 'Agg zone',
+	'Σゾーン': 'Σ zone',
+	'整列': 'Align',
+	'左': 'L',
+	'中': 'C',
+	'右': 'R',
+	'上': 'T',
+	'下': 'B',
+	'幅': 'W',
+	'高': 'H',
+	'左揃え': 'Align left',
+	'右揃え（右端を揃える）': 'Align right (align right edges)',
+	'上揃え': 'Align top',
+	'下揃え': 'Align bottom',
+	'幅を揃える（最も広いものに合わせる）': 'Match widths (to the widest)',
+	'高さを揃える（最も高いものに合わせる）': 'Match heights (to the tallest)',
+	'グループ': 'Group',
+	'対象': 'Targets',
+	'まとめる': 'Group',
+	'解除': 'Release',
+	'グループを解除': 'Ungroup',
+	'選択をまとめて1つのカスタムピースに（どのメンバーを動かしても連動。Alt+ドラッグで個別移動）':
+		'Group the selection into one custom piece (moving any member moves all; Alt+drag to move one)',
+	'ロック': 'Lock',
+	'移動・リサイズ・削除・編集を抑止': 'Prevents move, resize, delete and editing',
+	'配列複製': 'Array',
+	'個数/間隔': 'Count/offset',
+	'個数（最大50）': 'Count (max 50)',
+	'間隔 dx（px）': 'dx (px)',
+	'間隔 dy（px）': 'dy (px)',
+	'選択物を 個数×間隔(dx,dy) で一括複製（グループは別IDで独立）':
+		'Duplicate the selection by count × offset dx,dy (groups get a new ID)',
+	'複製': 'Dup',
+	'サイズ': 'Size',
+	'混在': 'Mixed',
+	'（混在）': '(mixed)',
+	'高さ': 'Height',
+
+	// ── ピース／罫線／曲線／計算／ゾーン ───────────
+	'フィット': 'Fit',
+	'内側の矩形罫線に位置・サイズを合わせる（複数矩形に跨る場合は不可。約6pxの誤差は吸収）':
+		'Fit position and size to the enclosing rectangle line (not across multiple rects; ~6px tolerance)',
+	'値': 'Value',
+	'色': 'Fill',
+	'枠なし': 'Frameless',
+	'フォント': 'Font',
+	'文字': 'Text',
+	'文字色': 'Text color',
+	'揃え': 'Align',
+	'表示': 'Show',
+	'線種': 'Style',
+	'線色': 'Color',
+	'前面': 'Front',
+	'始端': 'Start',
+	'終端': 'End',
+	'形状': 'Shape',
+	'角度': 'Angle',
+	'反時計回り': 'CCW',
+	'塗り': 'Fill',
+	'式': 'Formula',
+	'コンパクト': 'Compact',
+	'集計': 'Agg',
+	'条件': 'Filter',
+	'書式': 'Format',
+	'表記': 'Digits',
+	'カンマ': 'Commas',
+	'0非表示': 'Hide 0',
+	'なし': 'None',
+	'自動': 'Auto',
+	'白': 'White',
+	'黒': 'Black',
+	'グレー': 'Gray',
+	'赤': 'Red',
+	'青': 'Blue',
+	'緑': 'Green',
+	'細': 'Thin',
+	'標準': 'Normal',
+	'太': 'Bold',
+	'極太': 'XBold',
+	'破線': 'Dash',
+	'点線': 'Dot',
+	'一鎖': 'Chain',
+	'二重': 'Dbl',
+	'ー': '−',
+	'（）': '()',
+	'▲': '▲',
+	'赤ー': 'Red−',
+	'切上': 'Ceil',
+	'切捨': 'Floor',
+	'四捨五入': 'Round',
+	'無視': 'Ignore',
+	'右下': 'BR',
+	'自由': 'Free',
+	'四角': 'Rect',
+	'円弧': 'Arc',
+	'横': 'Landscape',
+	'縦': 'Portrait',
+	// グリフ・英語キー（欠落警告を抑止するため自分自身に写す）
+	'→': '→',
+	'●': '●',
+	'╲': '╲',
+	'╱': '╱',
+	'yellow': 'yellow',
+	'orange': 'orange',
+	'red': 'red',
+	'green': 'green',
+	'blue': 'blue',
+	'violet': 'violet',
+	'grey': 'grey',
+	'white': 'white',
+	'default': 'default',
+	'brown': 'brown',
+	'black': 'black',
+	'gray': 'gray',
+
+	// ── ゾーン・ノード内 ──────────────────────────
+	'条件なし（全ピース対象）': 'No filter (all pieces)',
+	'この色のピースのみ集計': 'Aggregate only pieces of this color',
+	'色で絞り込み中': 'Color filter active',
+	'式を表示': 'Show formula',
+	'式と結果の表示位置（下→自由）': 'Formula/result display position (bottom → free)',
+	'結果だけ表示（コンパクト）': 'Show result only (compact)',
+	'結果を{a}揃え': 'Align result {a}',
+	'{a}揃え': 'Align {a}',
+	'定数': 'Const',
+	'集計対象を点線で表示': 'Highlight aggregated pieces with a dotted outline',
+	'操作パネルを表示': 'Show control panel',
+	'太字': 'Bold',
+	'文字サイズ {s}': 'Font size {s}',
+	'テキスト（Enter=改行 / Ctrl+Enter=確定）': 'Text (Enter = newline / Ctrl+Enter = apply)',
+	'前面に表示（ピースの上に線を描く）': 'Draw in front (line renders above pieces)',
+	'丸め': 'Round',
+	'既定': 'Default',
+
+	// ── 用紙枠 ───────────────────────────────────
+	'用紙（掴んで移動。印刷はこの枠の範囲）': 'Paper (drag to move; printing covers this frame)',
+	'用紙の塗りを消して点線枠だけにする（明るさ対策。印刷範囲は変わりません）':
+		'Remove the paper fill and keep a dashed outline only (anti-glare; print range unchanged)',
+	'枠': 'Frame',
+	'枠・背景を消す': 'Hide frame/background',
+	'枠と背景を消す（集計は続く）': 'Hide frame and background (aggregation continues)',
+
+	// ── フォント ─────────────────────────────────
+	'ゴシック': 'Gothic',
+	'明朝': 'Mincho (serif)',
+	'帳票ゴシック': 'BIZ UDP Gothic',
+	'等幅': 'Monospace',
+	'文書既定': 'Document default',
+	'カスタム…': 'Custom…',
+	'フォント名（例: Meiryo）': 'Font name (e.g. Segoe UI)',
+	'この環境にインストールされていないフォントです。既定フォントで表示されます':
+		'This font is not installed here. It will render with the default font',
+	'⚠ 未所持': '⚠ not installed',
+
+	// ── CSV ペイン ───────────────────────────────
+	'取込': 'Import',
+	'Excel の範囲コピー（TSV）を貼り付けるか、CSV ファイルを選択してください（UTF-8 / UTF-16 / Shift_JIS / EUC-JP 自動判定）':
+		'Paste a range copied from Excel (TSV), or select a CSV file (auto-detects UTF-8 / UTF-16 / Shift_JIS / EUC-JP)',
+	'ここに貼り付け（例: 品名<TAB>数量<TAB>単価）':
+		'Paste here (e.g. Item<TAB>Qty<TAB>Price)',
+	'CSV ファイルを選択…': 'Select CSV file…',
+	'1行目はヘッダー（取り込まない）': 'First row is a header (not imported)',
+	'文字コード: {e}': 'Encoding: {e}',
+	'{r} 行 × {c} 列（{p} ピース）': '{r} rows × {c} cols ({p} pieces)',
+	'…他 {n} 行': '… +{n} more rows',
+	'{c} 列を超える列は「無視」として扱います。':
+		'Columns beyond {c} are treated as "ignore".',
+	'上限のため先頭 {n} 行まで取り込みます。':
+		'Due to the limit, only the first {n} rows are imported.',
+	'ファイルが大きすぎます（{mb}MB まで）': 'File too large (max {mb}MB)',
+	'{n} 行を取り込む': 'Import {n} rows',
+	'選択中のピース（{n}）': 'Selected pieces ({n})',
+	'文書全体（{n}）': 'Whole document ({n})',
+	'ピースの配置どおりに行列を再構成して書き出します（計算ピースは計算結果の値。罫線・ゾーンは除外）':
+		'Rebuilds rows/columns from the piece layout (calc pieces export their result; lines and zones are excluded)',
+	'TSV をコピー': 'Copy TSV',
+	'CSV で保存': 'Save as CSV',
+	'{n} 行をクリップボードにコピーしました（Excel にそのまま貼り付けられます）':
+		'Copied {n} rows to the clipboard (paste directly into Excel)',
+	'{n} 行を CSV で保存しました': 'Saved {n} rows as CSV',
+}
+
+export default dict

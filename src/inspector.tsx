@@ -15,6 +15,8 @@ import {
 import type { Edge } from '@xyflow/react'
 import { LABEL_POS_CYCLE, LABEL_POS_LABEL } from './nodes/agg-zone-node'
 import { LINE_COLORS, PIECE_COLORS, TEXT_COLORS } from './nodes/vobject-node'
+import { FontSelect } from './font-select'
+import { useT } from './i18n'
 import type {
 	AggLabelPos,
 	BoardNode,
@@ -124,12 +126,16 @@ function common<T, V>(arr: T[], get: (t: T) => V): V | null {
 }
 
 // calc 入力に接続しているソースの表示名（calc-node の Operand と同じ基準）
-function srcName(nodes: BoardNode[], id: string): string {
+function srcName(
+	nodes: BoardNode[],
+	id: string,
+	t: (k: string) => string
+): string {
 	const n = nodes.find((x) => x.id === id)
 	if (!n) return '?'
-	if (n.type === 'vobject') return n.data.label || '値'
-	if (n.type === 'zone') return 'Σゾーン'
-	return '計算'
+	if (n.type === 'vobject') return n.data.label || t('値')
+	if (n.type === 'zone') return t('Σゾーン')
+	return t('計算')
 }
 
 type NumericNode = VObjectNodeType | CalcNodeType | ZoneNodeType
@@ -195,6 +201,7 @@ function TextColorRow({
 	ids: string[]
 	applyData: ApplyData
 }) {
+	const t = useT()
 	const cur = common(nodes, (n) => n.data.textColor ?? 'auto')
 	return (
 		<Row label="文字色">
@@ -219,7 +226,7 @@ function TextColorRow({
 											borderColor: TEXT_COLORS[name],
 										}
 						}
-						title={TEXT_COLOR_LABEL[name] ?? name}
+						title={t(TEXT_COLOR_LABEL[name] ?? name)}
 						onClick={() =>
 							applyData(ids, {
 								textColor: name === 'auto' ? undefined : name,
@@ -239,9 +246,10 @@ function Row({
 	label: string
 	children: ReactNode
 }) {
+	const t = useT()
 	return (
 		<div className="insp-row">
-			<span className="insp-label">{label}</span>
+			<span className="insp-label">{t(label)}</span>
 			{children}
 		</div>
 	)
@@ -257,15 +265,16 @@ function Btns<T extends string>({
 	current: T | null
 	onPick: (v: T) => void
 }) {
+	const t = useT()
 	return (
 		<div className="vobject-align">
-			{options.map(([k, t]) => (
+			{options.map(([k, lbl]) => (
 				<button
 					key={k}
 					className={`vobject-align-btn${current === k ? ' active' : ''}`}
 					onClick={() => onPick(k)}
 				>
-					{t}
+					{t(lbl)}
 				</button>
 			))}
 		</div>
@@ -282,12 +291,13 @@ function Toggle({
 	on: boolean
 	onFlip: (v: boolean) => void
 }) {
+	const t = useT()
 	return (
 		<button
 			className={`vobject-align-btn${on ? ' active' : ''}`}
 			onClick={() => onFlip(!on)}
 		>
-			{label}
+			{t(label)}
 		</button>
 	)
 }
@@ -304,6 +314,7 @@ function Sel<T extends string>({
 	current: T | null
 	onPick: (v: T) => void
 }) {
+	const t = useT()
 	return (
 		<select
 			className="insp-select"
@@ -313,12 +324,12 @@ function Sel<T extends string>({
 		>
 			{current === null && (
 				<option value="__mixed" disabled>
-					（混在）
+					{t('（混在）')}
 				</option>
 			)}
 			{options.map((o) => (
 				<option key={o} value={o}>
-					{label[o]}
+					{t(label[o])}
 				</option>
 			))}
 		</select>
@@ -337,6 +348,7 @@ function TextField({
 	placeholder?: string
 	onCommit: (v: string) => void
 }) {
+	const t = useT()
 	const [draft, setDraft] = useState(value)
 	useEffect(() => setDraft(value), [value])
 	const commit = () => {
@@ -360,7 +372,7 @@ function TextField({
 			className="insp-text"
 			name="insp-text"
 			value={draft}
-			placeholder={placeholder}
+			placeholder={placeholder && t(placeholder)}
 			rows={Math.min(8, Math.max(2, draft.split('\n').length))}
 			onChange={(e) => setDraft(e.currentTarget.value)}
 			onBlur={commit}
@@ -371,7 +383,7 @@ function TextField({
 			className="insp-text"
 			name="insp-text"
 			value={draft}
-			placeholder={placeholder}
+			placeholder={placeholder && t(placeholder)}
 			onChange={(e) => setDraft(e.currentTarget.value)}
 			onBlur={commit}
 			onKeyDown={onKey}
@@ -391,6 +403,7 @@ function SizeCtl({
 	onStep: (d: number) => void
 	onSet: (v: number) => void
 }) {
+	const t = useT()
 	const [draft, setDraft] = useState(value === null ? '' : String(Math.round(value)))
 	useEffect(() => {
 		setDraft(value === null ? '' : String(Math.round(value)))
@@ -412,7 +425,7 @@ function SizeCtl({
 				className="insp-text insp-num insp-size"
 				name="insp-size"
 				value={draft}
-				placeholder="混在"
+				placeholder={t('混在')}
 				onChange={(e) => setDraft(e.currentTarget.value)}
 				onBlur={commit}
 				onKeyDown={(e) => {
@@ -480,6 +493,7 @@ function ArrayDup({
 	defDy: number
 	onRun: (count: number, dx: number, dy: number) => void
 }) {
+	const t = useT()
 	const [n, setN] = useState('5')
 	const [dx, setDx] = useState('0')
 	const [dy, setDy] = useState(String(defDy))
@@ -504,16 +518,16 @@ function ArrayDup({
 	)
 	return (
 		<Row label="個数/間隔">
-			{inp(n, setN, '個数（最大50）')}
-			{inp(dx, setDx, '間隔 dx（px）')}
-			{inp(dy, setDy, '間隔 dy（px）')}
+			{inp(n, setN, t('個数（最大50）'))}
+			{inp(dx, setDx, t('間隔 dx（px）'))}
+			{inp(dy, setDy, t('間隔 dy（px）'))}
 			<button
 				className="vobject-align-btn"
 				disabled={cnt < 1}
-				title="選択物を 個数×間隔(dx,dy) で一括複製（グループは別IDで独立）"
+				title={t('選択物を 個数×間隔(dx,dy) で一括複製（グループは別IDで独立）')}
 				onClick={() => onRun(cnt, num(dx), num(dy))}
 			>
-				複製
+				{t('複製')}
 			</button>
 		</Row>
 	)
@@ -534,6 +548,7 @@ export function Inspector({
 	applyNode: ApplyNode
 	onArray: (count: number, dx: number, dy: number) => void
 }) {
+	const t = useT()
 	const vos = sel.filter((n): n is VObjectNodeType => n.type === 'vobject')
 	const lines = sel.filter((n): n is LineNodeType => n.type === 'line')
 	const curves = sel.filter((n): n is CurveNodeType => n.type === 'curve')
@@ -549,10 +564,10 @@ export function Inspector({
 	const zoIds = zones.map((n) => n.id)
 
 	const head = [
-		vos.length > 0 && `ピース×${vos.length}`,
-		lines.length > 0 && `罫線×${lines.length}`,
-		curves.length > 0 && `曲線×${curves.length}`,
-		calcs.length > 0 && `計算×${calcs.length}`,
+		vos.length > 0 && `${t('ピース')}×${vos.length}`,
+		lines.length > 0 && `${t('罫線')}×${lines.length}`,
+		curves.length > 0 && `${t('曲線')}×${curves.length}`,
+		calcs.length > 0 && `${t('計算')}×${calcs.length}`,
 		zones.length > 0 && `Σ×${zones.length}`,
 	]
 		.filter(Boolean)
@@ -664,23 +679,23 @@ export function Inspector({
 			<div className="insp-head">{head}</div>
 			{align && (
 				<section className="insp-sec">
-					<div className="insp-title">整列</div>
+					<div className="insp-title">{t('整列')}</div>
 					<div className="insp-row">
 						<div className="vobject-align">
 							<button
 								className="vobject-align-btn"
-								title="左揃え"
+								title={t('左揃え')}
 								onClick={() =>
 									applyNode(allIds, (n) => ({
 										position: { x: align.left, y: n.position.y },
 									}))
 								}
 							>
-								左
+								{t('左')}
 							</button>
 							<button
 								className="vobject-align-btn"
-								title="右揃え（右端を揃える）"
+								title={t('右揃え（右端を揃える）')}
 								onClick={() =>
 									applyNode(allIds, (n) => ({
 										position: {
@@ -690,22 +705,22 @@ export function Inspector({
 									}))
 								}
 							>
-								右
+								{t('右')}
 							</button>
 							<button
 								className="vobject-align-btn"
-								title="上揃え"
+								title={t('上揃え')}
 								onClick={() =>
 									applyNode(allIds, (n) => ({
 										position: { x: n.position.x, y: align.top },
 									}))
 								}
 							>
-								上
+								{t('上')}
 							</button>
 							<button
 								className="vobject-align-btn"
-								title="下揃え"
+								title={t('下揃え')}
 								onClick={() =>
 									applyNode(allIds, (n) => ({
 										position: {
@@ -715,25 +730,25 @@ export function Inspector({
 									}))
 								}
 							>
-								下
+								{t('下')}
 							</button>
 							<button
 								className="vobject-align-btn"
-								title="幅を揃える（最も広いものに合わせる）"
+								title={t('幅を揃える（最も広いものに合わせる）')}
 								onClick={() =>
 									applyNode(allIds, () => ({ width: align.maxW }))
 								}
 							>
-								幅
+								{t('幅')}
 							</button>
 							<button
 								className="vobject-align-btn"
-								title="高さを揃える（最も高いものに合わせる）"
+								title={t('高さを揃える（最も高いものに合わせる）')}
 								onClick={() =>
 									applyNode(allIds, () => ({ height: align.maxH }))
 								}
 							>
-								高
+								{t('高')}
 							</button>
 						</div>
 					</div>
@@ -741,12 +756,12 @@ export function Inspector({
 			)}
 			{(canGroup || canUngroup) && (
 				<section className="insp-sec">
-					<div className="insp-title">グループ</div>
-					<Row label={`対象 ${groupTargets.length}`}>
+					<div className="insp-title">{t('グループ')}</div>
+					<Row label={`${t('対象')} ${groupTargets.length}`}>
 						<button
 							className="vobject-align-btn"
 							disabled={!canGroup}
-							title="選択をまとめて1つのカスタムピースに（どのメンバーを動かしても連動。Alt+ドラッグで個別移動）"
+							title={t('選択をまとめて1つのカスタムピースに（どのメンバーを動かしても連動。Alt+ドラッグで個別移動）')}
 							onClick={() =>
 								applyData(
 									groupTargets.map((n) => n.id),
@@ -754,12 +769,12 @@ export function Inspector({
 								)
 							}
 						>
-							まとめる
+							{t('まとめる')}
 						</button>
 						<button
 							className="vobject-align-btn"
 							disabled={!canUngroup}
-							title="グループを解除"
+							title={t('グループを解除')}
 							onClick={() =>
 								applyData(
 									groupTargets.map((n) => n.id),
@@ -767,37 +782,37 @@ export function Inspector({
 								)
 							}
 						>
-							解除
+							{t('解除')}
 						</button>
 					</Row>
 				</section>
 			)}
 			{lockables.length > 0 && (
 				<section className="insp-sec">
-					<div className="insp-title">ロック</div>
-					<Row label={`対象 ${lockables.length}`}>
+					<div className="insp-title">{t('ロック')}</div>
+					<Row label={`${t('対象')} ${lockables.length}`}>
 						<Toggle
-							label={allLocked ? '解除' : 'ロック'}
+							label={allLocked ? t('解除') : t('ロック')}
 							on={allLocked}
 							onFlip={(v) =>
 								applyData(lockIds, { locked: v ? true : undefined })
 							}
 						/>
 						<span className="insp-hint">
-							移動・リサイズ・削除・編集を抑止
+							{t('移動・リサイズ・削除・編集を抑止')}
 						</span>
 					</Row>
 				</section>
 			)}
 			{sel.length > 0 && (
 				<section className="insp-sec">
-					<div className="insp-title">配列複製</div>
+					<div className="insp-title">{t('配列複製')}</div>
 					<ArrayDup defDy={arrDefDy} onRun={onArray} />
 				</section>
 			)}
 			{sel.length > 0 && (
 				<section className="insp-sec">
-					<div className="insp-title">サイズ</div>
+					<div className="insp-title">{t('サイズ')}</div>
 					<Row label="幅">
 						<SizeCtl
 							value={wCom}
@@ -833,7 +848,9 @@ export function Inspector({
 							<button
 								className="vobject-align-btn"
 								disabled={fillable.length === 0}
-								title="内側の矩形罫線に位置・サイズを合わせる（複数矩形に跨る場合は不可。約6pxの誤差は吸収）"
+								title={t(
+									'内側の矩形罫線に位置・サイズを合わせる（複数矩形に跨る場合は不可。約6pxの誤差は吸収）'
+								)}
 								onClick={() =>
 									applyNode(
 										fillable.map((n) => n.id),
@@ -852,7 +869,7 @@ export function Inspector({
 									)
 								}
 							>
-								フィット
+								{t('フィット')}
 							</button>
 						</Row>
 					)}
@@ -861,7 +878,8 @@ export function Inspector({
 			{vos.length > 0 && (
 				<section className="insp-sec">
 					<div className="insp-title">
-						ピース{vos.length > 1 ? ` ×${vos.length}` : ''}
+						{t('ピース')}
+						{vos.length > 1 ? ` ×${vos.length}` : ''}
 					</div>
 					{vos.length === 1 && (
 						<>
@@ -904,13 +922,22 @@ export function Inspector({
 													borderColor: c.border,
 												}
 									}
-									title={name === 'none' ? '枠なし' : name}
+									title={t(name === 'none' ? '枠なし' : name)}
 									onClick={() => applyData(voIds, { color: name })}
 								/>
 							))}
 						</div>
 					</Row>
 					<TextColorRow nodes={vos} ids={voIds} applyData={applyData} />
+					<Row label="フォント">
+						<FontSelect
+							value={common(vos, (n) => n.data.font ?? '') ?? ''}
+							onPick={(f) =>
+								applyData(voIds, { font: f === '' ? undefined : f })
+							}
+							allowInherit
+						/>
+					</Row>
 					<Row label="文字">
 						<Btns
 							options={SIZE_OPTS}
@@ -938,7 +965,8 @@ export function Inspector({
 			{lines.length > 0 && (
 				<section className="insp-sec">
 					<div className="insp-title">
-						罫線{lines.length > 1 ? ` ×${lines.length}` : ''}
+						{t('罫線')}
+						{lines.length > 1 ? ` ×${lines.length}` : ''}
 					</div>
 					<Row label="線種">
 						<Btns
@@ -954,7 +982,7 @@ export function Inspector({
 									key={name}
 									className={`vobject-swatch${lineColorCur === name ? ' active' : ''}`}
 									style={{ backgroundColor: hex }}
-									title={name}
+									title={t(name === 'default' ? '既定' : name)}
 									onClick={() =>
 										applyData(lnIds, {
 											color:
@@ -1114,7 +1142,7 @@ export function Inspector({
 										backgroundColor: 'transparent',
 										border: '1px dashed #999',
 									}}
-									title="なし"
+									title={t('なし')}
 									onClick={() =>
 										applyData(lnIds, { fill: undefined })
 									}
@@ -1129,7 +1157,7 @@ export function Inspector({
 												backgroundColor: c.fill,
 												borderColor: c.border,
 											}}
-											title={name}
+											title={t(name)}
 											onClick={() =>
 												applyData(lnIds, { fill: name })
 											}
@@ -1143,7 +1171,8 @@ export function Inspector({
 			{curves.length > 0 && (
 				<section className="insp-sec">
 					<div className="insp-title">
-						曲線{curves.length > 1 ? ` ×${curves.length}` : ''}
+						{t('曲線')}
+						{curves.length > 1 ? ` ×${curves.length}` : ''}
 					</div>
 					<Row label="線種">
 						<Btns
@@ -1159,7 +1188,7 @@ export function Inspector({
 									key={name}
 									className={`vobject-swatch${common(curves, (n) => n.data.color ?? 'default') === name ? ' active' : ''}`}
 									style={{ backgroundColor: hex }}
-									title={name}
+									title={t(name === 'default' ? '既定' : name)}
 									onClick={() =>
 										applyData(cvIds, {
 											color:
@@ -1211,7 +1240,8 @@ export function Inspector({
 			{calcs.length > 0 && (
 				<section className="insp-sec">
 					<div className="insp-title">
-						計算{calcs.length > 1 ? ` ×${calcs.length}` : ''}
+						{t('計算')}
+						{calcs.length > 1 ? ` ×${calcs.length}` : ''}
 					</div>
 					<Row label="式">
 						<Sel<CalcOp>
@@ -1236,7 +1266,7 @@ export function Inspector({
 										{src !== null ? (
 											// 接続済みの口は定数が効かないので編集不可表示
 											<span className="insp-src">
-												← {srcName(nodes, src)}
+												← {srcName(nodes, src, t)}
 											</span>
 										) : (
 											<NumField
@@ -1292,7 +1322,8 @@ export function Inspector({
 			{zones.length > 0 && (
 				<section className="insp-sec">
 					<div className="insp-title">
-						集計ゾーン{zones.length > 1 ? ` ×${zones.length}` : ''}
+						{t('集計ゾーン')}
+						{zones.length > 1 ? ` ×${zones.length}` : ''}
 					</div>
 					<Row label="集計">
 						<Sel<AggFn>
@@ -1307,6 +1338,39 @@ export function Inspector({
 							current={common(zones, (n) => n.data.labelPos)}
 							onPick={(v) => applyData(zoIds, { labelPos: v })}
 						/>
+					</Row>
+					<Row label="条件">
+						<div className="vobject-colors">
+							<button
+								className={`vobject-swatch${common(zones, (n) => n.data.filter?.color ?? '') === '' ? ' active' : ''}`}
+								style={{
+									backgroundColor: 'transparent',
+									border: '1px dashed #999',
+								}}
+								title={t('条件なし（全ピース対象）')}
+								onClick={() =>
+									applyData(zoIds, { filter: undefined })
+								}
+							/>
+							{Object.entries(PIECE_COLORS)
+								.filter(([name]) => name !== 'none')
+								.map(([name, c]) => (
+									<button
+										key={name}
+										className={`vobject-swatch${common(zones, (n) => n.data.filter?.color) === name ? ' active' : ''}`}
+										style={{
+											backgroundColor: c.fill,
+											borderColor: c.border,
+										}}
+										title={t('この色のピースのみ集計')}
+										onClick={() =>
+											applyData(zoIds, {
+												filter: { color: name },
+											})
+										}
+									/>
+								))}
+						</div>
 					</Row>
 					<Row label="文字">
 						<Btns

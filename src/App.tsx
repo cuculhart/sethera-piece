@@ -52,6 +52,15 @@ import {
 	type ParsedTable,
 } from './lib/csv'
 import { loadTemplates, saveTemplates, type Template } from './lib/templates'
+import { missingFonts } from './lib/fonts'
+import { FontSelect } from './font-select'
+import {
+	getLang,
+	resolvedLang,
+	setLang,
+	useT,
+	type Lang,
+} from './i18n'
 import { CsvPane } from './csv-pane'
 import { Inspector } from './inspector'
 import { HintContext } from './hint-context'
@@ -76,7 +85,7 @@ const fixZoneSelectable = (n: BoardNode): BoardNode =>
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '0.9.1'
+const APP_VERSION = '1.0.0'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 const TB_COLOR_KEY = 'sethera-toolbar-color'
@@ -617,6 +626,7 @@ export default function App() {
 }
 
 function Board() {
+	const t = useT()
 	const [doc] = useState(loadDoc)
 	const [nodes, setNodes] = useState<BoardNode[]>(doc.nodes)
 	const [edges, setEdges] = useState<Edge[]>(doc.edges)
@@ -1243,7 +1253,7 @@ function Board() {
 			zIndex: 1,
 			data: {
 				kind,
-				label: kind === 'number' ? '' : 'テキスト',
+				label: kind === 'number' ? '' : t('テキスト'),
 				value: kind === 'text' ? null : 0,
 				color: 'yellow',
 				// 数値は帳票の慣習で右揃えを既定にする
@@ -1636,20 +1646,37 @@ function Board() {
 		e.currentTarget.value = ''
 		if (!f) return
 		f.text()
-			.then((t) => {
-				const parsed = JSON.parse(t)
+			.then((txt) => {
+				const parsed = JSON.parse(txt)
 				if (!Array.isArray(parsed?.nodes)) throw new Error('bad doc')
 				record('app')
-				setNodes(parsed.nodes.map(fixZoneSelectable))
+				const nextNodes = parsed.nodes.map(fixZoneSelectable)
+				setNodes(nextNodes)
 				setEdges(Array.isArray(parsed.edges) ? parsed.edges : [])
 				if (parsed.paper && typeof parsed.paper === 'object') {
 					setPaper({ ...DEFAULT_PAPER, ...parsed.paper })
+				}
+				// カスタム書体の未所持を警告（表示は既定フォントへフォールバック）
+				const missing = missingFonts([
+					parsed.paper?.font,
+					...nextNodes.map((n: BoardNode) =>
+						n.type === 'vobject' ? n.data.font : undefined
+					),
+				])
+				if (missing.length > 0) {
+					alert(
+						t('この環境に無いフォントが使われています: {f}\n（既定フォントで表示されます）', {
+							f: missing.join('、'),
+						})
+					)
 				}
 				if (typeof parsed.viewport?.zoom === 'number') {
 					rf.setViewport(parsed.viewport)
 				}
 			})
-			.catch(() => alert('Sethera の JSON ファイルとして読み込めませんでした'))
+			.catch(() =>
+				alert(t('Sethera の JSON ファイルとして読み込めませんでした'))
+			)
 	}
 
 	// ─── テンプレートライブラリ ─────────────────────────────
@@ -1675,7 +1702,7 @@ function Board() {
 			...templates,
 			{
 				id: crypto.randomUUID(),
-				name: name.trim() || '無題',
+				name: name.trim() || t('無題'),
 				createdAt: new Date().toISOString().slice(0, 10),
 				nodes: sel.map(
 					(n) =>
@@ -1754,14 +1781,14 @@ function Board() {
 						name:
 							typeof parsed.name === 'string' && parsed.name
 								? parsed.name
-								: '読み込みテンプレート',
+								: t('読み込みテンプレート'),
 						nodes: parsed.nodes,
 						edges: Array.isArray(parsed.edges) ? parsed.edges : [],
 					},
 				])
 			})
 			.catch(() =>
-				alert('テンプレートの JSON として読み込めませんでした')
+				alert(t('テンプレートの JSON として読み込めませんでした'))
 			)
 	}
 
@@ -1909,6 +1936,7 @@ function Board() {
 									maxY: paper.y + paperDims(paper).h,
 								}
 							: null,
+						docFont: paper.font,
 						set: (ids: string[]) => setHintedIds(new Set(ids)),
 						clear: () => setHintedIds(new Set()),
 					}),
@@ -2048,7 +2076,7 @@ function Board() {
 					})()}
 				{curveDraw && (
 					<div className="curvehint">
-						曲線: クリックで頂点（3点以上）、同じ点の再クリック or Enter で確定、Escでキャンセル
+						{t('曲線: クリックで頂点（3点以上）、同じ点の再クリック or Enter で確定、Escでキャンセル')}
 					</div>
 				)}
 				{curveDraw &&
@@ -2110,7 +2138,11 @@ function Board() {
 				>
 					<button
 						className="tbtoggle"
-						title={tbCollapsed ? 'ツールバーを展開' : 'ツールバーを折りたたむ'}
+						title={
+							tbCollapsed
+								? t('ツールバーを展開')
+								: t('ツールバーを折りたたむ')
+						}
 						onClick={() => setTbCollapsed((v) => !v)}
 					>
 						{tbCollapsed ? '»' : '«'}
@@ -2118,37 +2150,47 @@ function Board() {
 					<span className="brand">
 						Sethera Piece <em>Visual Strategy Board</em>
 					</span>
-					<button data-icon="付" title="付箋＋数値ピース" onClick={() => addObject('pair')}>
-						付箋＋数値
+					<button
+						className="tb-lang"
+						title={t('言語を切り替え')}
+						aria-label={t('言語を切り替え')}
+						onClick={() =>
+							setLang(resolvedLang() === 'en' ? 'ja' : 'en')
+						}
+					>
+						{resolvedLang() === 'en' ? 'JA' : 'EN'}
 					</button>
-					<button data-icon="文" title="テキストピース" onClick={() => addObject('text')}>
-						テキスト
+					<button data-icon="付" title={t('付箋＋数値ピース')} onClick={() => addObject('pair')}>
+						{t('付箋＋数値')}
 					</button>
-					<button data-icon="数" title="数値ピース" onClick={() => addObject('number')}>
-						数値
+					<button data-icon="文" title={t('テキストピース')} onClick={() => addObject('text')}>
+						{t('テキスト')}
 					</button>
-					<button data-icon="計" onClick={addCalc} title="四則演算ピース（ピースの右の●から線を引いて繋ぐ）">
-						計算
+					<button data-icon="数" title={t('数値ピース')} onClick={() => addObject('number')}>
+						{t('数値')}
 					</button>
-					<button data-icon="─" onClick={addLine} title="罫線（横長=水平線/縦長=垂直線。線は枠の上辺・左辺に引かれる。選択中に線種変更）">
-						罫線
+					<button data-icon="計" onClick={addCalc} title={t('四則演算ピース（ピースの右の●から線を引いて繋ぐ）')}>
+						{t('計算')}
 					</button>
-					<button data-icon="□" onClick={addRect} title="矩形罫線（4辺の枠。グリッド吸着で隣接矩形の辺が完全に重なる）">
-						矩形
+					<button data-icon="─" onClick={addLine} title={t('罫線（横長=水平線/縦長=垂直線。線は枠の上辺・左辺に引かれる。選択中に線種変更）')}>
+						{t('罫線')}
+					</button>
+					<button data-icon="□" onClick={addRect} title={t('矩形罫線（4辺の枠。グリッド吸着で隣接矩形の辺が完全に重なる）')}>
+						{t('矩形')}
 					</button>
 					<button
 						data-icon="◯"
 						onClick={addEllipse}
-						title="楕円（w=h で正円。塗り・線種・二重線に対応）"
+						title={t('楕円（w=h で正円。塗り・線種・二重線に対応）')}
 					>
-						楕円
+						{t('楕円')}
 					</button>
 					<button
 						data-icon="╲"
 						onClick={addDiag}
-						title="斜線（枠の対角線。↗向きはペインで切替。端点装飾・線種・二重線に対応）"
+						title={t('斜線（枠の対角線。↗向きはペインで切替。端点装飾・線種・二重線に対応）')}
 					>
-						斜線
+						{t('斜線')}
 					</button>
 					<button
 						data-icon="∿"
@@ -2167,113 +2209,114 @@ function Board() {
 								setCurveDraw(true)
 							}
 						}}
-						title="曲線を描画（クリックで頂点を打ち込み、同じ点の再クリック or Enter で確定。全点を通るスプライン）"
+						title={t('曲線を描画（クリックで頂点を打ち込み、同じ点の再クリック or Enter で確定。全点を通るスプライン）')}
 					>
-						曲線
+						{t('曲線')}
 					</button>
 					<button
 						data-icon="✎"
 						className={lineMode ? 'active' : ''}
 						onClick={() => setLineMode((v) => !v)}
-						title="線編集モード: ONの間は罫線だけを最前面で操作可能（他のピースはクリック不可・半透明）"
+						title={t('線編集モード: ONの間は罫線だけを最前面で操作可能（他のピースはクリック不可・半透明）')}
 					>
-						線編集
+						{t('線編集')}
 					</button>
 					<button
 						data-icon="Σ"
 						className={zoneDraw ? 'active' : ''}
 						title={
 							selectedCount > 0
-								? '選択中のピースを囲む集計ゾーン'
-								: '集計ゾーンをドラッグで描画（対角2点を指定。Esc/クリックでキャンセル）'
+								? t('選択中のピースを囲む集計ゾーン')
+								: t('集計ゾーンをドラッグで描画（対角2点を指定。Esc/クリックでキャンセル）')
 						}
 						onClick={onZoneButton}
 					>
-						Σ 集計ゾーン{selectedCount > 0 ? ` (${selectedCount})` : ''}
+						{t('Σ 集計ゾーン')}
+						{selectedCount > 0 ? ` (${selectedCount})` : ''}
 					</button>
 					<button
 						data-icon="#"
 						className={gridOn ? 'active' : ''}
-						title="グリッド表示"
+						title={t('グリッド表示')}
 						onClick={() => setGridOn(!gridOn)}
 					>
-						グリッド
+						{t('グリッド')}
 					</button>
 					<button
 						data-icon="吸"
 						className={snapOn ? 'active' : ''}
-						title="吸着: グリッド吸着＋他ピースの端点/中点/中心への吸着（ガイド線表示）"
+						title={t('吸着: グリッド吸着＋他ピースの端点/中点/中心への吸着（ガイド線表示）')}
 						onClick={() => setSnapOn(!snapOn)}
 					>
-						吸着
+						{t('吸着')}
 					</button>
 					<button
 						data-icon="紙"
 						className={paper.on ? 'active' : ''}
-						title="用紙枠の表示（A4/B5/A3・縦横切替）"
+						title={t('用紙枠の表示（A4/B5/A3・縦横切替）')}
 						onClick={togglePaper}
 					>
-						用紙
+						{t('用紙')}
 					</button>
-					<button data-icon="印" onClick={doPrint} title="用紙枠（または全体）の範囲を印刷">
-						印刷
+					<button data-icon="印" onClick={doPrint} title={t('用紙枠（または全体）の範囲を印刷')}>
+						{t('印刷')}
 					</button>
-					<button data-icon="保" onClick={exportDoc} title="JSONファイルに保存">
-						保存
+					<button data-icon="保" onClick={exportDoc} title={t('JSONファイルに保存')}>
+						{t('保存')}
 					</button>
-					<button data-icon="開" onClick={() => fileRef.current?.click()} title="JSONファイルを開く">
-						開く
+					<button data-icon="開" onClick={() => fileRef.current?.click()} title={t('JSONファイルを開く')}>
+						{t('開く')}
 					</button>
 					<button
 						data-icon="表"
 						onClick={() => setModal('csv')}
-						title="CSV/TSV の取込・書出（Excel のコピー貼り付け・ファイル読込・計算結果の引き渡し）"
+						title={t('CSV/TSV の取込・書出（Excel のコピー貼り付け・ファイル読込・計算結果の引き渡し）')}
 					>
 						CSV
 					</button>
 					<button
 						data-icon="鋳"
-						title="テンプレートライブラリ（選択を雛形として保存・呼び出し）"
+						title={t('テンプレートライブラリ（選択を雛形として保存・呼び出し）')}
 						onClick={() => setModal('templates')}
 					>
-						テンプレ
+						{t('テンプレ')}
 					</button>
 					<button
 						data-icon="↩"
 						disabled={histLen.past === 0}
-						title="元に戻す (Ctrl+Z)"
+						title={t('元に戻す (Ctrl+Z)')}
 						onClick={undo}
 					>
-						↩ 戻す
+						↩ {t('戻す')}
 					</button>
 					<button
 						data-icon="↪"
 						disabled={histLen.future === 0}
-						title="やり直し (Ctrl+Shift+Z / Ctrl+Y)"
+						title={t('やり直し (Ctrl+Shift+Z / Ctrl+Y)')}
 						onClick={redo}
 					>
-						↪ やり直し
+						↪ {t('やり直し')}
 					</button>
 					<button
 						data-icon="⚙"
-						title="設定"
+						title={t('設定')}
 						onClick={() => setModal('settings')}
 					>
-						設定
+						{t('設定')}
 					</button>
 					<button
 						data-icon="i"
-						title="このアプリについて"
+						title={t('このアプリについて')}
 						onClick={() => setModal('about')}
 					>
 						About
 					</button>
 					<button
 						data-icon="×"
-						title="すべてのピース・罫線・接続を削除"
+						title={t('すべてのピース・罫線・接続を削除')}
 						onClick={() => setModal('reset')}
 					>
-						全消去
+						{t('全消去')}
 					</button>
 					<input
 						ref={fileRef}
@@ -2285,8 +2328,7 @@ function Board() {
 					/>
 				</div>
 				<div className="print-note">
-					印刷にはツールバーの「印刷」ボタン、または Ctrl+P
-					をご利用ください（ブラウザの印刷メニューからの直接印刷には対応していません）
+					{t('印刷にはツールバーの「印刷」ボタン、または Ctrl+P をご利用ください（ブラウザの印刷メニューからの直接印刷には対応していません）')}
 				</div>
 				{printImg && (
 					<div className="print-stage">
@@ -2314,9 +2356,7 @@ function Board() {
 										セセラピース — Visual Strategy Board
 									</p>
 									<p>
-										セルではなくピースを自由に置いて計算する、
-										ビジュアルボード。見積書や集計表を、
-										空間にそのまま組み立てられます。
+										{t('セルではなくピースを自由に置いて計算する、ビジュアルボード。見積書や集計表を、空間にそのまま組み立てられます。')}
 									</p>
 									<dl className="modal-meta">
 										<div>
@@ -2338,7 +2378,7 @@ function Board() {
 									</dl>
 									<div className="modal-actions">
 										<button onClick={() => setModal(null)}>
-											閉じる
+											{t('閉じる')}
 										</button>
 									</div>
 								</>
@@ -2348,6 +2388,13 @@ function Board() {
 									onChange={applyTbColor}
 									theme={theme}
 									onTheme={applyTheme}
+									lang={getLang()}
+									onLang={setLang}
+									font={paper.font ?? 'sans'}
+									onFont={(f) => {
+										record('paper', 600)
+										setPaper({ ...paper, font: f === 'sans' ? undefined : f })
+									}}
 									onClose={() => setModal(null)}
 								/>
 							) : modal === 'templates' ? (
@@ -2373,21 +2420,21 @@ function Board() {
 								/>
 							) : (
 								<>
-									<h2>すべて消去しますか？</h2>
+									<h2>{t('すべて消去しますか？')}</h2>
 									<p>
-										すべてのピース・罫線・計算・接続を削除します。
+										{t('すべてのピース・罫線・計算・接続を削除します。')}
 										<br />
-										この操作は Ctrl+Z で元に戻せます。
+										{t('この操作は Ctrl+Z で元に戻せます。')}
 									</p>
 									<div className="modal-actions">
 										<button onClick={() => setModal(null)}>
-											キャンセル
+											{t('キャンセル')}
 										</button>
 										<button
 											className="danger"
 											onClick={clearAll}
 										>
-											全消去
+											{t('全消去')}
 										</button>
 									</div>
 								</>
@@ -2406,14 +2453,24 @@ function SettingsPane({
 	onChange,
 	theme,
 	onTheme,
+	lang,
+	onLang,
+	font,
+	onFont,
 	onClose,
 }: {
 	color: string
 	onChange: (c: string) => void
 	theme: Theme
 	onTheme: (t: Theme) => void
+	lang: Lang
+	onLang: (l: Lang) => void
+	/** 文書既定フォント（FONTS キー名 or カスタム書体名） */
+	font: string
+	onFont: (f: string) => void
 	onClose: () => void
 }) {
+	const t = useT()
 	const [draft, setDraft] = useState(color)
 	const valid = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(draft)
 	const pickValue = valid
@@ -2423,9 +2480,9 @@ function SettingsPane({
 		: '#ffffff'
 	return (
 		<>
-			<h2>設定</h2>
+			<h2>{t('設定')}</h2>
 			<div className="settings-row">
-				<label htmlFor="tbcolor">ツールバーの色</label>
+				<label htmlFor="tbcolor">{t('ツールバーの色')}</label>
 				<input
 					type="color"
 					name="tbcolor-pick"
@@ -2452,24 +2509,48 @@ function SettingsPane({
 						onChange('')
 					}}
 				>
-					既定
+					{t('既定')}
 				</button>
 			</div>
 			<div className="settings-row">
-				<label htmlFor="theme">テーマ</label>
+				<label htmlFor="theme">{t('テーマ')}</label>
 				<select
 					id="theme"
 					className="insp-select"
 					value={theme}
 					onChange={(e) => onTheme(e.target.value as Theme)}
 				>
-					<option value="standard">標準</option>
-					<option value="quiet">Quiet（UI の明度を抑える）</option>
-					<option value="dark">ダーク（暗い盤面）</option>
+					<option value="standard">{t('標準')}</option>
+					<option value="quiet">
+						{t('Quiet（UI の明度を抑える）')}
+					</option>
+					<option value="dark">{t('ダーク（暗い盤面）')}</option>
 				</select>
 			</div>
+			<div className="settings-row">
+				<label htmlFor="lang">{t('言語')}</label>
+				<select
+					id="lang"
+					className="insp-select"
+					value={lang}
+					onChange={(e) => onLang(e.target.value as Lang)}
+				>
+					<option value="auto">{t('自動（ブラウザ）')}</option>
+					<option value="ja">日本語</option>
+					<option value="en">English</option>
+				</select>
+			</div>
+			<div className="settings-row">
+				<label htmlFor="docfont">{t('文書のフォント')}</label>
+				<FontSelect
+					id="docfont"
+					value={font}
+					onPick={onFont}
+					allowInherit={false}
+				/>
+			</div>
 			<div className="modal-actions">
-				<button onClick={onClose}>閉じる</button>
+				<button onClick={onClose}>{t('閉じる')}</button>
 			</div>
 		</>
 	)
@@ -2499,6 +2580,7 @@ function TemplatesPane({
 	onImport: (e: ChangeEvent<HTMLInputElement>) => void
 	onClose: () => void
 }) {
+	const t = useT()
 	const [name, setName] = useState('')
 	const [editingId, setEditingId] = useState<string | null>(null)
 	const [editName, setEditName] = useState('')
@@ -2513,11 +2595,13 @@ function TemplatesPane({
 	}
 	return (
 		<>
-			<h2>テンプレート</h2>
+			<h2>{t('テンプレート')}</h2>
 			<p className="modal-sub">
 				{canSave
-					? `選択中の ${saveCount} ピースを雛形として保存します`
-					: '雛形の呼び出し・管理（文書とは別に保管）。保存するには複数ピースを選んでから開いてください'}
+					? t('選択中の {n} ピースを雛形として保存します', {
+							n: saveCount,
+						})
+					: t('雛形の呼び出し・管理（文書とは別に保管）。保存するには複数ピースを選んでから開いてください')}
 			</p>
 			{canSave && (
 				<div className="tpl-save">
@@ -2525,26 +2609,28 @@ function TemplatesPane({
 						className="insp-text"
 						name="tpl-name"
 						value={name}
-						placeholder="新規テンプレート名"
+						placeholder={t('新規テンプレート名')}
 						onChange={(e) => setName(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === 'Enter') doSave()
 						}}
 					/>
-					<button onClick={doSave}>選択×{saveCount} を保存</button>
+					<button onClick={doSave}>
+						{t('選択×{n} を保存', { n: saveCount })}
+					</button>
 				</div>
 			)}
 			{templates.length === 0 ? (
 				<p className="insp-hint">
-					まだテンプレートがありません。グループ化した明細行や罫線セットを登録すると、他の文書でも呼び出せます
+					{t('まだテンプレートがありません。グループ化した明細行や罫線セットを登録すると、他の文書でも呼び出せます')}
 				</p>
 			) : (
 				<ul className="tpl-list">
-					{templates.map((t) => (
-						<li key={t.id} className="tpl-row">
+					{templates.map((tpl) => (
+						<li key={tpl.id} className="tpl-row">
 							{canSave ? (
-								<span className="tpl-name">{t.name}</span>
-							) : editingId === t.id ? (
+								<span className="tpl-name">{tpl.name}</span>
+							) : editingId === tpl.id ? (
 								<input
 									className="insp-text tpl-name-input"
 									name="tpl-rename"
@@ -2553,9 +2639,9 @@ function TemplatesPane({
 									onChange={(e) =>
 										setEditName(e.target.value)
 									}
-									onBlur={() => commitRename(t)}
+									onBlur={() => commitRename(tpl)}
 									onKeyDown={(e) => {
-										if (e.key === 'Enter') commitRename(t)
+										if (e.key === 'Enter') commitRename(tpl)
 										else if (e.key === 'Escape')
 											setEditingId(null)
 									}}
@@ -2563,35 +2649,35 @@ function TemplatesPane({
 							) : (
 								<span
 									className="tpl-name"
-									title="クリックで改名"
+									title={t('クリックで改名')}
 									onClick={() => {
-										setEditingId(t.id)
-										setEditName(t.name)
+										setEditingId(tpl.id)
+										setEditName(tpl.name)
 									}}
 								>
-									{t.name}
+									{tpl.name}
 								</span>
 							)}
 							<span className="tpl-count">
-								{t.nodes.length} ピース
-								{t.createdAt ? `・${t.createdAt}` : ''}
+								{t('{n} ピース', { n: tpl.nodes.length })}
+								{tpl.createdAt ? `・${tpl.createdAt}` : ''}
 							</span>
 							{!canSave && (
 								<>
-									<button onClick={() => onInsert(t)}>
-										挿入
+									<button onClick={() => onInsert(tpl)}>
+										{t('挿入')}
 									</button>
 									<button
-										onClick={() => onExport(t)}
-										title="JSON ファイルに書き出し"
+										onClick={() => onExport(tpl)}
+										title={t('JSON ファイルに書き出し')}
 									>
-										書出
+										{t('書出')}
 									</button>
 									<button
 										className="danger"
-										onClick={() => onDelete(t.id)}
+										onClick={() => onDelete(tpl.id)}
 									>
-										削除
+										{t('削除')}
 									</button>
 								</>
 							)}
@@ -2602,11 +2688,11 @@ function TemplatesPane({
 			<div className="modal-actions">
 				{canSave ? (
 					<span className="insp-hint">
-						挿入・改名・書出・削除は選択を解除してから開いてください
+						{t('挿入・改名・書出・削除は選択を解除してから開いてください')}
 					</span>
 				) : (
 					<label className="tpl-import">
-						JSON から読み込み
+						{t('JSON から読み込み')}
 						<input
 							type="file"
 							name="tpl-file"
@@ -2616,7 +2702,7 @@ function TemplatesPane({
 						/>
 					</label>
 				)}
-				<button onClick={onClose}>閉じる</button>
+				<button onClick={onClose}>{t('閉じる')}</button>
 			</div>
 		</>
 	)

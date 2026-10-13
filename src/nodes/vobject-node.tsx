@@ -13,8 +13,10 @@ import {
 	type NodeProps,
 } from '@xyflow/react'
 import { HintContext } from '../hint-context'
+import { useT } from '../i18n'
 import { formatNumber, onDarkCanvas } from '../lib/aggregate'
 import { numCls } from '../lib/calc'
+import { fontStack } from '../lib/fonts'
 import type { VObjectData, VObjectNodeType } from './types'
 
 export const PIECE_COLORS: Record<
@@ -96,6 +98,7 @@ export function VObjectNode({
 				backgroundColor: theme.fill,
 				borderColor: theme.border,
 				color: textColor,
+				fontFamily: fontStack(data.font, hint.docFont),
 			}}
 			onDoubleClick={() => !data.locked && setEditing(true)}
 		>
@@ -143,6 +146,7 @@ function VObjectEditor({
 	stopEdit: () => void
 }) {
 	const { updateNodeData } = useReactFlow()
+	const t = useT()
 	const [draftLabel, setDraftLabel] = useState(data.label)
 	const [draftValue, setDraftValue] = useState(
 		data.value === null ? '' : String(data.value)
@@ -199,7 +203,7 @@ function VObjectEditor({
 					name="vobject-label"
 					value={draftLabel}
 					autoFocus
-					placeholder="テキスト（Enter=改行 / Ctrl+Enter=確定）"
+					placeholder={t('テキスト（Enter=改行 / Ctrl+Enter=確定）')}
 					rows={Math.min(8, Math.max(1, draftLabel.split('\n').length))}
 					onPointerDown={(e) => e.stopPropagation()}
 					onChange={(e) => {
@@ -223,7 +227,7 @@ function VObjectEditor({
 					name="vobject-value"
 					value={draftValue}
 					autoFocus={!showLabel}
-					placeholder="数値"
+					placeholder={t('数値')}
 					onPointerDown={(e) => e.stopPropagation()}
 					onChange={(e) => {
 						setDraftValue(e.currentTarget.value)
@@ -249,20 +253,20 @@ function VObjectEditor({
 							['l', 'L'],
 							['xl', 'LL'],
 						] as const
-					).map(([k, t]) => (
+					).map(([k, sz]) => (
 						<button
 							key={k}
 							className={`vobject-align-btn${(data.size ?? 'm') === k ? ' active' : ''}`}
-							title={`文字サイズ ${t}`}
+							title={t('文字サイズ {s}', { s: sz })}
 							onPointerDown={(e) => e.stopPropagation()}
 							onClick={() => updateNodeData(id, { size: k })}
 						>
-							{t}
+							{sz}
 						</button>
 					))}
 					<button
 						className={`vobject-align-btn bold-btn${data.bold ? ' active' : ''}`}
-						title="太字"
+						title={t('太字')}
 						onPointerDown={(e) => e.stopPropagation()}
 						onClick={() => updateNodeData(id, { bold: !data.bold })}
 					>
@@ -276,15 +280,15 @@ function VObjectEditor({
 							['c', '中'],
 							['r', '右'],
 						] as const
-					).map(([k, t]) => (
+					).map(([k, al]) => (
 						<button
 							key={k}
 							className={`vobject-align-btn${(data.align ?? 'c') === k ? ' active' : ''}`}
-							title={`${t}揃え`}
+							title={t('{a}揃え', { a: t(al) })}
 							onPointerDown={(e) => e.stopPropagation()}
 							onClick={() => updateNodeData(id, { align: k })}
 						>
-							{t}
+							{t(al)}
 						</button>
 					))}
 				</div>
@@ -301,7 +305,7 @@ function VObjectEditor({
 										}
 									: { backgroundColor: c.fill, borderColor: c.border }
 							}
-							title={name === 'none' ? '枠なし' : name}
+							title={t(name === 'none' ? '枠なし' : name)}
 							onPointerDown={(e) => e.stopPropagation()}
 							onClick={() => updateNodeData(id, { color: name })}
 						/>

@@ -63,6 +63,27 @@ body,
 	color: rgba(255, 255, 255, 0.6);
 }
 
+/* タイトル下の JA⇄EN トグル（切替先の言語名を表示。
+   言語が読めないユーザーでも自己説明する） */
+.toolbar button.tb-lang {
+	align-self: center;
+	padding: 1px 8px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+	text-align: center;
+}
+
+.toolbar button.tb-lang::before {
+	content: none;
+}
+
+.toolbar.collapsed button.tb-lang {
+	width: 30px;
+	font-size: 10px;
+	padding: 6px 0;
+}
+
 .toolbar button {
 	padding: 4px 10px;
 	border: 1px solid #c8c8c8;
@@ -594,6 +615,15 @@ textarea.vobject-label-input {
 	font-weight: 700;
 	font-size: 15px;
 	line-height: 1.1;
+}
+
+/* 色条件が設定されていることを示すドット（チップ内の関数名の脇） */
+.aggzone-fdot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	border: 1px solid rgba(0, 0, 0, 0.35);
+	flex-shrink: 0;
 }
 
 .aggzone-count {
