@@ -85,7 +85,7 @@ const fixZoneSelectable = (n: BoardNode): BoardNode =>
 
 const GRID = 12
 const HIST_MAX = 100
-const APP_VERSION = '1.0.0'
+const APP_VERSION = '1.0.1'
 const DOC_KEY = 'sethera-doc'
 const VP_KEY = 'sethera-viewport'
 const TB_COLOR_KEY = 'sethera-toolbar-color'
@@ -627,6 +627,9 @@ export default function App() {
 
 function Board() {
 	const t = useT()
+	// 折りたたみツールバーのアイコン用。漢字グリフは英語UIでは記号に切替
+	const ic = (ja: string, en: string) =>
+		resolvedLang() === 'en' ? en : ja
 	const [doc] = useState(loadDoc)
 	const [nodes, setNodes] = useState<BoardNode[]>(doc.nodes)
 	const [edges, setEdges] = useState<Edge[]>(doc.edges)
@@ -2160,16 +2163,16 @@ function Board() {
 					>
 						{resolvedLang() === 'en' ? 'JA' : 'EN'}
 					</button>
-					<button data-icon="付" title={t('付箋＋数値ピース')} onClick={() => addObject('pair')}>
+					<button data-icon={ic('付', '▣')} title={t('付箋＋数値ピース')} onClick={() => addObject('pair')}>
 						{t('付箋＋数値')}
 					</button>
-					<button data-icon="文" title={t('テキストピース')} onClick={() => addObject('text')}>
+					<button data-icon={ic('文', 'T')} title={t('テキストピース')} onClick={() => addObject('text')}>
 						{t('テキスト')}
 					</button>
-					<button data-icon="数" title={t('数値ピース')} onClick={() => addObject('number')}>
+					<button data-icon={ic('数', '№')} title={t('数値ピース')} onClick={() => addObject('number')}>
 						{t('数値')}
 					</button>
-					<button data-icon="計" onClick={addCalc} title={t('四則演算ピース（ピースの右の●から線を引いて繋ぐ）')}>
+					<button data-icon={ic('計', 'ƒ')} onClick={addCalc} title={t('四則演算ピース（ピースの右の●から線を引いて繋ぐ）')}>
 						{t('計算')}
 					</button>
 					<button data-icon="─" onClick={addLine} title={t('罫線（横長=水平線/縦長=垂直線。線は枠の上辺・左辺に引かれる。選択中に線種変更）')}>
@@ -2243,7 +2246,7 @@ function Board() {
 						{t('グリッド')}
 					</button>
 					<button
-						data-icon="吸"
+						data-icon={ic('吸', '◈')}
 						className={snapOn ? 'active' : ''}
 						title={t('吸着: グリッド吸着＋他ピースの端点/中点/中心への吸着（ガイド線表示）')}
 						onClick={() => setSnapOn(!snapOn)}
@@ -2251,31 +2254,31 @@ function Board() {
 						{t('吸着')}
 					</button>
 					<button
-						data-icon="紙"
+						data-icon={ic('紙', '▭')}
 						className={paper.on ? 'active' : ''}
 						title={t('用紙枠の表示（A4/B5/A3・縦横切替）')}
 						onClick={togglePaper}
 					>
 						{t('用紙')}
 					</button>
-					<button data-icon="印" onClick={doPrint} title={t('用紙枠（または全体）の範囲を印刷')}>
+					<button data-icon={ic('印', '⎙')} onClick={doPrint} title={t('用紙枠（または全体）の範囲を印刷')}>
 						{t('印刷')}
 					</button>
-					<button data-icon="保" onClick={exportDoc} title={t('JSONファイルに保存')}>
+					<button data-icon={ic('保', '⬇')} onClick={exportDoc} title={t('JSONファイルに保存')}>
 						{t('保存')}
 					</button>
-					<button data-icon="開" onClick={() => fileRef.current?.click()} title={t('JSONファイルを開く')}>
+					<button data-icon={ic('開', '⬆')} onClick={() => fileRef.current?.click()} title={t('JSONファイルを開く')}>
 						{t('開く')}
 					</button>
 					<button
-						data-icon="表"
+						data-icon={ic('表', '▦')}
 						onClick={() => setModal('csv')}
 						title={t('CSV/TSV の取込・書出（Excel のコピー貼り付け・ファイル読込・計算結果の引き渡し）')}
 					>
 						CSV
 					</button>
 					<button
-						data-icon="鋳"
+						data-icon={ic('鋳', '⧉')}
 						title={t('テンプレートライブラリ（選択を雛形として保存・呼び出し）')}
 						onClick={() => setModal('templates')}
 					>
