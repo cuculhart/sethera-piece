@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-22
+
+### 変更
+
+- 依存パッケージを更新: react / react-dom 19.3.1、vite 8.3.5、
+  typescript 7.0.2、@vitejs/plugin-react 6.1.2、
+  @fontsource/noto-sans-jp 5.3.1、playwright-core 1.64.1。
+  `npm audit` の指摘は 0 件を確認
+
 ## [1.0.1] - 2026-10-13
 
 ### 修正
