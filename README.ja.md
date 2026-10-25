@@ -42,11 +42,11 @@ English: [README.md](README.md)
 ```bash
 npm install
 npm run dev      # http://localhost:5173/sethera-piece/
-npm run build    # 本番ビルド → dist/
+npm run build    # 本番ビルド → app/dist/
 npm run typecheck
 ```
 
-React 19 + TypeScript + Vite + [@xyflow/react](https://github.com/xyflow/xyflow) (MIT) + html-to-image。
+React 19 + TypeScript + Vite + [Kimetron Isle](https://github.com/cuculhart/kimetron)（`kimetron/` に同梱）+ html-to-image。
 
 ## 基本的な使い方
 

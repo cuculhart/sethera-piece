@@ -43,11 +43,11 @@ See [CHANGELOG](CHANGELOG.md) for the release history (latest: v1.0.0).
 ```bash
 npm install
 npm run dev      # http://localhost:5173/sethera-piece/
-npm run build    # production build → dist/
+npm run build    # production build → app/dist/
 npm run typecheck
 ```
 
-React 19 + TypeScript + Vite + [@xyflow/react](https://github.com/xyflow/xyflow) (MIT) + html-to-image.
+React 19 + TypeScript + Vite + [Kimetron Isle](https://github.com/cuculhart/kimetron) (vendored in `kimetron/`) + html-to-image.
 
 ## Basic usage
 

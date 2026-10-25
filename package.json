@@ -1,30 +1,21 @@
 {
   "name": "sethera-piece",
   "private": true,
-  "version": "1.0.2",
-  "description": "セセラピース (Sethera Piece) — freeform visual board with live calculations. No cells, just pieces.",
+  "version": "2.0.0",
+  "description": "Sethera Piece — freeform visual board with live calculations. No cells, just pieces. Rebuilt on the Kimetron engine (kimetron/ is a vendored copy).",
   "type": "module",
+  "workspaces": [
+    "kimetron/packages/*",
+    "app"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@fontsource/biz-udpgothic": "^5.3.0",
-    "@fontsource/noto-sans-jp": "^5.3.1",
-    "@fontsource/shippori-mincho": "^5.3.0",
-    "@xyflow/react": "^12.12.0",
-    "html-to-image": "^1.11.13",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "dev": "npm run dev -w sethera-app",
+    "build": "npm run build -w sethera-app",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "playwright-core": "^1.64.0",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.4"
   }
 }
